@@ -38,6 +38,7 @@ int main(int argc, const char *argv[]) {
             exit(-1);
         }
         ast->Dump(fs);
+        ast->Print();
         fs.close();
     }
     else
