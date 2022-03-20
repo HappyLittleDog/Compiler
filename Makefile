@@ -103,4 +103,7 @@ $(BUILD_DIR)/%.tab$(FB_EXT): $(SRC_DIR)/%.y
 clean:
 	-rm -rf $(BUILD_DIR)
 
+test: *
+	build/compiler -koopa test/hello.c -o test/hello.koopa
+
 -include $(DEPS)

@@ -2,12 +2,14 @@
   #include <memory>
   #include <string>
   #include "ast.hpp"
+  #include "logger.hpp"
 }
 %{
 #include <iostream>
 #include <memory>
 #include <string>
 #include "ast.hpp"
+#include "logger.hpp"
 
 using namespace std;
 int yylex();
@@ -80,5 +82,6 @@ Number
 %%
 void yyerror(std::unique_ptr<BaseAst> &ast, const char *s)
 {
-    cerr<<"[error] "<<s<<endl;
+    LOG_ERROR("%s", s);
+    ast->Print();
 }

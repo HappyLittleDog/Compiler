@@ -5,13 +5,14 @@
 #include <iostream>
 #include <string>
 #include "parser.tab.hpp"
+#include "logger.hpp"
 
 using namespace std;
 %}
-
+%option yylineno
 /* Regular definitions */
 WhiteSpace              [ \t\n\r]*
-LineComment             "//".*\n
+LineComment             "//".*
 LongComment             "/*"((\/+[^*/]*)|("*"+[^*/]+)|([^*/]*))*"*"+"/"
 NonZeroDigit            [1-9]
 DecimalDigit            [0-9]
@@ -30,4 +31,5 @@ IDChar                  [0-9A-Za-z_]
 "0"{OctalDigit}*                                        {yylval.int_val=(int)strtol(yytext,NULL,8); return INT_CONST;}
 {HexPrefix}{HexDigit}*                                  {yylval.int_val=(int)strtol(yytext,NULL,16); return INT_CONST;}
 {IDNonDigit}{IDChar}*                                   {yylval.str_val=new string(yytext); return IDENT;}
+.                                                       {LOG_ERROR("\"%s\"@[line #%d]: unrecognized token", yytext, yylineno);}
 %%
