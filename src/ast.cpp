@@ -1,4 +1,4 @@
-#include "ast.hpp"
+#include "include/ast.hpp"
 using namespace std;
 
 void CompUnit::Print(string indent) const
@@ -9,7 +9,7 @@ void CompUnit::Print(string indent) const
     cout<<indent<<"}\n";
 }
 
-void CompUnit::Dump(fstream& fs, string indent) const
+void CompUnit::Dump(basic_ostream<char>& fs, string indent) const
 {
     funcdef_->Dump(fs,indent);
 }
@@ -24,7 +24,7 @@ void FuncDef::Print(string indent) const
     cout<<indent<<"}\n";
 }
 
-void FuncDef::Dump(fstream& fs, string indent) const
+void FuncDef::Dump(basic_ostream<char>& fs, string indent) const
 {
     fs<<indent<<"fun @"<<ident_<<"()";
     functype_->Dump(fs,"");
@@ -43,7 +43,7 @@ void FuncType::Print(string indent) const
         cout<<indent<<"FuncType: ???\n";
 }
 
-void FuncType::Dump(fstream& fs, string indent) const
+void FuncType::Dump(basic_ostream<char>& fs, string indent) const
 {
     if (rettype_==DataType::INT)
         fs<<indent<<": i32";
@@ -59,7 +59,7 @@ void Block::Print(string indent) const
     cout<<indent<<"}\n";
 }
 
-void Block::Dump(fstream& fs, string indent) const
+void Block::Dump(basic_ostream<char>& fs, string indent) const
 {
     fs<<indent<<"\%entry:"<<endl;
     auto curindent=indent+"\t";
@@ -77,7 +77,7 @@ void Stmt::Print(string indent) const
     cout<<indent<<"}\n";
 }
 
-void Stmt::Dump(fstream& fs, string indent) const
+void Stmt::Dump(basic_ostream<char>& fs, string indent) const
 {
     fs<<indent<<"ret ";
     retv_->Dump(fs,"");
@@ -89,7 +89,7 @@ void Number::Print(string indent) const
     cout<<indent<<int_const_;
 }
 
-void Number::Dump(fstream& fs, string indent) const
+void Number::Dump(basic_ostream<char>& fs, string indent) const
 {
     fs<<indent<<int_const_;
 }
