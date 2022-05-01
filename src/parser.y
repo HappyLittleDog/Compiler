@@ -21,10 +21,10 @@ void yyerror(std::unique_ptr<BaseAst> &ast, const char *s);
     std::string* str_val;
     BaseAst* ast_val;
 }
-%token INT RETURN
+%token INT RETURN PLUS MINUS MULT DIV MOD EQQ NEQ LT GT LEQ GEQ NOT AND OR
 %token <str_val> IDENT
 %token <int_val> INT_CONST
-%type <ast_val> FuncDef FuncType Block Stmt Number
+%type <ast_val> FuncDef FuncType Block Stmt Exp PrimaryExp UnaryExp Number
 %%
 CompUnit
     :   FuncDef 
@@ -63,10 +63,67 @@ Block
     ;
 
 Stmt
-    :   RETURN Number ';'
+    :   RETURN Exp ';'
         {
             auto cur=new Stmt();
             cur->retv_=unique_ptr<BaseAst>($2);
+            $$=cur;
+        }
+    ;
+
+Exp
+    :   UnaryExp
+        {
+            auto cur=new Exp();
+            cur->subexp_=unique_ptr<BaseAst>($1);
+            $$=cur;
+        }
+    ;
+
+UnaryExp
+    :   PLUS UnaryExp
+        {
+            auto cur=new UnaryExp();
+            cur->cur_derivation_=0;
+            cur->subexp_=unique_ptr<BaseAst>($2);
+            $$=cur;
+        }
+    |   MINUS UnaryExp
+        {
+            auto cur=new UnaryExp();
+            cur->cur_derivation_=1;
+            cur->subexp_=unique_ptr<BaseAst>($2);
+            $$=cur;
+        }
+    |   NOT UnaryExp
+        {
+            auto cur=new UnaryExp();
+            cur->cur_derivation_=2;
+            cur->subexp_=unique_ptr<BaseAst>($2);
+            $$=cur;
+        }
+    |   PrimaryExp
+        {
+            auto cur=new UnaryExp();
+            cur->cur_derivation_=3;
+            cur->subexp_=unique_ptr<BaseAst>($1);
+            $$=cur;
+        }
+    ;
+
+PrimaryExp
+    :   '(' Exp ')'
+        {
+            auto cur=new PrimaryExp();
+            cur->cur_derivation_=0;
+            cur->subexp_=unique_ptr<BaseAst>($2);
+            $$=cur;
+        }
+    |   Number
+        {
+            auto cur=new PrimaryExp();
+            cur->cur_derivation_=1;
+            cur->subexp_=unique_ptr<BaseAst>($1);
             $$=cur;
         }
     ;

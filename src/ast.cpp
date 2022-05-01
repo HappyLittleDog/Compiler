@@ -1,6 +1,13 @@
 #include "include/ast.hpp"
 using namespace std;
 
+int temp_var_counter=0;
+int new_tempvar()
+{
+    temp_var_counter++;
+    return temp_var_counter;
+}
+
 void CompUnit::Print(string indent) const
 {
     cout<<indent<<"CompUnit {\n";
@@ -9,7 +16,7 @@ void CompUnit::Print(string indent) const
     cout<<indent<<"}\n";
 }
 
-void CompUnit::Dump(basic_ostream<char>& fs, string indent) const
+void CompUnit::Dump(basic_ostream<char>& fs, string indent, int dest) const
 {
     funcdef_->Dump(fs,indent);
 }
@@ -24,7 +31,7 @@ void FuncDef::Print(string indent) const
     cout<<indent<<"}\n";
 }
 
-void FuncDef::Dump(basic_ostream<char>& fs, string indent) const
+void FuncDef::Dump(basic_ostream<char>& fs, string indent, int dest) const
 {
     fs<<indent<<"fun @"<<ident_<<"()";
     functype_->Dump(fs,"");
@@ -43,7 +50,7 @@ void FuncType::Print(string indent) const
         cout<<indent<<"FuncType: ???\n";
 }
 
-void FuncType::Dump(basic_ostream<char>& fs, string indent) const
+void FuncType::Dump(basic_ostream<char>& fs, string indent, int dest) const
 {
     if (rettype_==DataType::INT)
         fs<<indent<<": i32";
@@ -59,7 +66,7 @@ void Block::Print(string indent) const
     cout<<indent<<"}\n";
 }
 
-void Block::Dump(basic_ostream<char>& fs, string indent) const
+void Block::Dump(basic_ostream<char>& fs, string indent, int dest) const
 {
     fs<<indent<<"\%entry:"<<endl;
     auto curindent=indent+"\t";
@@ -77,19 +84,108 @@ void Stmt::Print(string indent) const
     cout<<indent<<"}\n";
 }
 
-void Stmt::Dump(basic_ostream<char>& fs, string indent) const
+void Stmt::Dump(basic_ostream<char>& fs, string indent, int dest) const
 {
-    fs<<indent<<"ret ";
-    retv_->Dump(fs,"");
-    fs<<endl;
+    // RETURN Exp ';'
+    int tpvar=new_tempvar();
+    retv_->Dump(fs,indent,tpvar);
+    fs<<indent<<"ret %"<<tpvar<<endl;
+}
+
+void Exp::Print(string indent) const
+{
+    cout<<indent<<"Exp {\n";
+    string curindent=indent+"|\t";
+    subexp_->Print(curindent);
+    cout<<indent<<"}\n";
+}
+
+void Exp::Dump(basic_ostream<char>& fs, string indent, int dest) const
+{
+    subexp_->Dump(fs,indent,dest);
+}
+
+void UnaryExp::Print(string indent) const
+{
+    cout<<indent<<"UnaryExp {\n";
+    string curindent=indent+"|\t";
+    switch (cur_derivation_)
+    {
+    case 0: // PLUS UnaryExp
+        cout<<curindent<<"OP: +\n";
+        break;
+    
+    case 1: // MINUS UnaryExp
+        cout<<curindent<<"OP: -\n";
+        break;
+
+    case 2: // NOT UnaryExp
+        cout<<curindent<<"OP: !\n";
+        break;
+    
+    case 3: // PrimaryExp
+        break;
+
+    default:
+        LOG_ERROR("@UnaryExp::print: Unrecognized cur_derivation_=%d",cur_derivation_);
+        break;
+    }
+    subexp_->Print(curindent);
+    cout<<indent<<"}\n";
+}
+
+void UnaryExp::Dump(basic_ostream<char>& fs, string indent, int dest) const
+{
+    int tpvar;
+    switch (cur_derivation_)
+    {
+    case 0: // PLUS UnaryExp
+        subexp_->Dump(fs,indent,dest);
+        break;
+    
+    case 1: // MINUS UnaryExp
+        tpvar=new_tempvar();
+        subexp_->Dump(fs,indent,tpvar);
+        fs<<indent<<"%"<<dest<<" = sub 0, %"<<tpvar<<endl;
+        break;
+
+    case 2: // NOT UnaryExp
+        tpvar=new_tempvar();
+        subexp_->Dump(fs,indent,tpvar);
+        fs<<indent<<"%"<<dest<<" = eq 0, %"<<tpvar<<endl;
+        break;
+    
+    case 3: // PrimaryExp
+        subexp_->Dump(fs,indent,dest);
+        break;
+
+    default:
+        LOG_ERROR("@UnaryExp::dump: Unrecognized cur_derivation_=%d",cur_derivation_);
+        break;
+    }
+}
+
+void PrimaryExp::Print(string indent) const
+{
+    cout<<indent<<"PrimaryExp: {\n";
+    string curindent=indent+"|\t";
+    subexp_->Print(curindent);
+    cout<<indent<<"}\n";
+}
+
+void PrimaryExp::Dump(basic_ostream<char>& fs, string indent, int dest) const
+{
+    subexp_->Dump(fs,indent,dest);
 }
 
 void Number::Print(string indent) const
 {
-    cout<<indent<<int_const_;
+    cout<<indent<<"Number: {\n";
+    cout<<indent<<"|\t"<<int_const_<<endl;
+    cout<<indent<<"}\n";
 }
 
-void Number::Dump(basic_ostream<char>& fs, string indent) const
+void Number::Dump(basic_ostream<char>& fs, string indent, int dest) const
 {
-    fs<<indent<<int_const_;
+    fs<<indent<<"%"<<dest<<" = add 0, "<<int_const_<<endl;
 }

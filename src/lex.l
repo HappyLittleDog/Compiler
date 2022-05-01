@@ -27,6 +27,20 @@ IDChar                  [0-9A-Za-z_]
 "int"                                                   {return INT;}
 "return"                                                {return RETURN;}
 [(){};]                                                 {return yytext[0];}
+"+"                                                     {return PLUS;}
+"\-"                                                    {return MINUS;}
+"\*"                                                    {return MULT;}
+"/"                                                     {return DIV;}
+"%"                                                     {return MOD;}
+"=="                                                    {return EQQ;}
+"!="                                                    {return NEQ;}
+"<"                                                     {return LT;}
+">"                                                     {return GT;}
+"<="                                                    {return LEQ;}
+">="                                                    {return GEQ;}
+"!"                                                     {return NOT;}
+"&&"                                                    {return AND;}
+"||"                                                    {return OR;}
 {NonZeroDigit}{DecimalDigit}*                           {yylval.int_val=(int)strtol(yytext,NULL,10); return INT_CONST;}
 "0"{OctalDigit}*                                        {yylval.int_val=(int)strtol(yytext,NULL,8); return INT_CONST;}
 {HexPrefix}{HexDigit}*                                  {yylval.int_val=(int)strtol(yytext,NULL,16); return INT_CONST;}

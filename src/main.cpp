@@ -90,13 +90,13 @@ int main(int argc, const char *argv[]) {
     }
     return 0;
 
-    /* ============================================================================
-     * 
-     *                Playground, used for development and have fun!
-     * 
-     * ============================================================================
-     */
-    // char input[]="test/hello.c";
+    // /* ============================================================================
+    //  * 
+    //  *                Playground, used for development and have fun!
+    //  * 
+    //  * ============================================================================
+    //  */
+    // char input[]="test/ret0.c";
     // yyin = fopen(input, "r");
     // assert(yyin);
     // unique_ptr<BaseAst> ast;
@@ -143,18 +143,29 @@ int main(int argc, const char *argv[]) {
     //         for (size_t k=0;k<bb->insts.len;k++)
     //         {
     //             koopa_raw_value_t value=(koopa_raw_value_t) bb->insts.buffer[k];
-    //             // 示例程序中, 你得到的 value 一定是一条 return 指令
-    //             assert(value->kind.tag == KOOPA_RVT_RETURN);
-    //             // 于是我们可以按照处理 return 指令的方式处理这个 value
-    //             // return 指令中, value 代表返回值
-    //             koopa_raw_value_t ret_value = value->kind.data.ret.value;
-    //             // 示例程序中, ret_value 一定是一个 integer
-    //             assert(ret_value->kind.tag == KOOPA_RVT_INTEGER);
-    //             // 于是我们可以按照处理 integer 的方式处理 ret_value
-    //             // integer 中, value 代表整数的数值
-    //             int32_t int_val = ret_value->kind.data.integer.value;
-    //             // 示例程序中, 这个数值一定是 0
-    //             assert(int_val == 0);
+    //             // // 示例程序中, 你得到的 value 一定是一条 return 指令
+    //             // assert(value->kind.tag == KOOPA_RVT_RETURN);
+    //             // // 于是我们可以按照处理 return 指令的方式处理这个 value
+    //             // // return 指令中, value 代表返回值
+    //             // koopa_raw_value_t ret_value = value->kind.data.ret.value;
+    //             // // 示例程序中, ret_value 一定是一个 integer
+    //             // assert(ret_value->kind.tag == KOOPA_RVT_INTEGER);
+    //             // // 于是我们可以按照处理 integer 的方式处理 ret_value
+    //             // // integer 中, value 代表整数的数值
+    //             // int32_t int_val = ret_value->kind.data.integer.value;
+    //             // // 示例程序中, 这个数值一定是 0
+    //             // assert(int_val == 0);
+    //             LOG_INFO("kind.tag: %d",value->kind.tag);
+    //             LOG_INFO("cur addr: %p",value);
+    //             LOG_INFO("bin addr: %p",value->kind.data.binary);
+    //             if (value->kind.tag==KOOPA_RVT_BINARY)
+    //             {
+    //                 LOG_INFO("used by: %d",value->used_by.kind);
+    //                 LOG_INFO("usedby len: %d",value->used_by.len);
+    //                 LOG_INFO("usedby kind: %d",reinterpret_cast<koopa_raw_value_t>(value->used_by.buffer[0])->kind.tag);
+    //                 LOG_INFO("usedby addr:%p",value->used_by.buffer[0]);
+    //             }
+    //             // assert(value->kind.tag == KOOPA_RVT_BINARY);
     //         }
     //     }
     // }

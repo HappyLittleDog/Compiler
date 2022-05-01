@@ -19,7 +19,7 @@ LDFLAGS :=
 LOGMODE :=
 
 # Debug flags
-DEBUG ?= 0
+DEBUG ?= 1
 ifeq ($(DEBUG), 0)
 CFLAGS += -g -O0
 CXXFLAGS += -g -O0
@@ -103,7 +103,21 @@ $(BUILD_DIR)/%.tab$(FB_EXT): $(SRC_DIR)/%.y
 clean:
 	-rm -rf $(BUILD_DIR)
 
+# 0: koopa
+# 1: riscv
+TESTMODE := 1
+TESTFILENAME := retexp
+TESTFLAG :=
+TESTOUTEXT :=
+ifeq ($(TESTMODE),0)
+TESTFLAG = -koopa
+TESTOUTEXT = koopa
+else
+TESTFLAG = -riscv
+TESTOUTEXT = S
+endif
+
 test: *
-	build/compiler -koopa test/hello.c -o test/hello.koopa
+	build/compiler $(TESTFLAG) test/$(TESTFILENAME).c -o test/$(TESTFILENAME).$(TESTOUTEXT)
 
 -include $(DEPS)
