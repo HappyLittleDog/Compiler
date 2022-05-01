@@ -105,7 +105,7 @@ clean:
 
 # 0: koopa
 # 1: riscv
-TESTMODE := 1
+TESTMODE := 0
 TESTFILENAME := retexp
 TESTFLAG :=
 TESTOUTEXT :=
@@ -119,5 +119,17 @@ endif
 
 test: *
 	build/compiler $(TESTFLAG) test/$(TESTFILENAME).c -o test/$(TESTFILENAME).$(TESTOUTEXT)
+
+koopa: test/$(TESTFILENAME).koopa
+	koopac test/$(TESTFILENAME).koopa | llc --filetype=obj -o test/$(TESTFILENAME).o
+	clang test/$(TESTFILENAME).o -L$$CDE_LIBRARY_PATH/native -lsysy -o test/$(TESTFILENAME)
+	echo "Build $(TESTFILENAME) successfully!"
+
+riscv: test/$(TESTFILENAME).S
+	clang test/$(TESTFILENAME).S -c -o test/$(TESTFILENAME).o -target riscv32-unknown-linux-elf -march=rv32im -mabi=ilp32
+	ld.lld test/$(TESTFILENAME).o -L$$CDE_LIBRARY_PATH/riscv32 -lsysy -o test/$(TESTFILENAME)
+	echo "Build $(TESTFILENAME) successfully!"
+	echo "Execute test/$(TESTFILENAME):"
+	qemu-riscv32-static test/$(TESTFILENAME)
 
 -include $(DEPS)

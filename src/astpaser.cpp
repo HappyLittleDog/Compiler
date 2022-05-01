@@ -2,6 +2,7 @@
 using namespace std;
 
 stringstream asms;
+int RISCV_IMM_THRESHOLD=(1<<12);
 
 class Register_Allocator
 {
@@ -229,33 +230,31 @@ void VisitBin(const koopa_raw_value_t &val, Register_Allocator *ra)
 		}
 		else if (lhs->kind.tag != KOOPA_RVT_INTEGER && rhs->kind.tag == KOOPA_RVT_INTEGER)
 		{
-			//===============================================================
-			// WARNING: DISMISS THE UPPER 20 BITS OF IMMEDIATE NOW!
-			//===============================================================
-			string tpreg=ra->allocate_temp();
-			assert(tpreg!="");
 			string lr=ra->get_pos((const void*)lhs);
 			assert(lr!="");
 			int ri=rhs->kind.data.integer.value;
-			assert(ri<(1<<12));
-			asms<<"\taddi "<<tpreg<<", "<<lr<<", "<<(-1)*ri<<endl;
-			asms<<"\tsnez "<<dest<<", "<<tpreg<<endl;
-			ra->free_temp(tpreg);
+			if (ri<RISCV_IMM_THRESHOLD)
+				asms<<"\taddi "<<dest<<", "<<lr<<", "<<(-1)*ri<<endl;
+			else
+			{
+				asms<<"\tli "<<dest<<", "<<ri<<endl;
+				asms<<"\tsub "<<dest<<", "<<lr<<", "<<dest<<endl;
+			}
+			asms<<"\tsnez "<<dest<<", "<<dest<<endl;
 		}
 		else if (lhs->kind.tag == KOOPA_RVT_INTEGER && rhs->kind.tag != KOOPA_RVT_INTEGER)
 		{
-			//===============================================================
-			// WARNING: DISMISS THE UPPER 20 BITS OF IMMEDIATE NOW!
-			//===============================================================
-			string tpreg=ra->allocate_temp();
-			assert(tpreg!="");
 			string rr=ra->get_pos((const void*)rhs);
 			assert(rr!="");
 			int li=lhs->kind.data.integer.value;
-			assert(li<(1<<12));
-			asms<<"\taddi "<<tpreg<<", "<<rr<<", "<<(-1)*li<<endl;
-			asms<<"\tsnez "<<dest<<", "<<tpreg<<endl;
-			ra->free_temp(tpreg);
+			if (li<RISCV_IMM_THRESHOLD)
+				asms<<"\taddi "<<dest<<", "<<rr<<", "<<(-1)*li<<endl;
+			else
+			{
+				asms<<"\tli "<<dest<<", "<<li<<endl;
+				asms<<"\tsub "<<dest<<", "<<rr<<", "<<dest<<endl;
+			}
+			asms<<"\tsnez "<<dest<<", "<<dest<<endl;
 		}
 		else
 		{
@@ -286,45 +285,202 @@ void VisitBin(const koopa_raw_value_t &val, Register_Allocator *ra)
 		}
 		else if (lhs->kind.tag != KOOPA_RVT_INTEGER && rhs->kind.tag == KOOPA_RVT_INTEGER)
 		{
-			//===============================================================
-			// WARNING: DISMISS THE UPPER 20 BITS OF IMMEDIATE NOW!
-			//===============================================================
-			string tpreg=ra->allocate_temp();
-			assert(tpreg!="");
 			string lr=ra->get_pos((const void*)lhs);
 			assert(lr!="");
 			int ri=rhs->kind.data.integer.value;
-			assert(ri<(1<<12));
-			asms<<"\taddi "<<tpreg<<", "<<lr<<", "<<(-1)*ri<<endl;
-			asms<<"\tseqz "<<dest<<", "<<tpreg<<endl;
-			ra->free_temp(tpreg);
+			if (ri<RISCV_IMM_THRESHOLD)
+				asms<<"\taddi "<<dest<<", "<<lr<<", "<<(-1)*ri<<endl;
+			else
+			{
+				asms<<"\tli "<<dest<<", "<<ri<<endl;
+				asms<<"\tsub "<<dest<<", "<<lr<<", "<<dest<<endl;
+			}
+			asms<<"\tseqz "<<dest<<", "<<dest<<endl;
 		}
 		else if (lhs->kind.tag == KOOPA_RVT_INTEGER && rhs->kind.tag != KOOPA_RVT_INTEGER)
 		{
-			//===============================================================
-			// WARNING: DISMISS THE UPPER 20 BITS OF IMMEDIATE NOW!
-			//===============================================================
-			string tpreg=ra->allocate_temp();
-			assert(tpreg!="");
 			string rr=ra->get_pos((const void*)rhs);
 			assert(rr!="");
 			int li=lhs->kind.data.integer.value;
-			assert(li<(1<<12));
-			asms<<"\taddi "<<tpreg<<", "<<rr<<", "<<(-1)*li<<endl;
-			asms<<"\tseqz "<<dest<<", "<<tpreg<<endl;
-			ra->free_temp(tpreg);
+			if (li<RISCV_IMM_THRESHOLD)
+				asms<<"\taddi "<<dest<<", "<<rr<<", "<<(-1)*li<<endl;
+			else
+			{
+				asms<<"\tli "<<dest<<", "<<li<<endl;
+				asms<<"\tsub "<<dest<<", "<<rr<<", "<<dest<<endl;
+			}
+			asms<<"\tseqz "<<dest<<", "<<dest<<endl;
 		}
 		else
 		{
-			string tpreg=ra->allocate_temp();
-			assert(tpreg!="");
 			string lr=ra->get_pos(lhs);
 			assert(lr!="");
 			string rr=ra->get_pos(rhs);
 			assert(rr!="");
-			asms<<"\tsub "<<tpreg<<", "<<lr<<", "<<rr<<endl;
-			asms<<"\tseqz "<<dest<<", "<<tpreg<<endl;
-			ra->free_temp(tpreg);
+			asms<<"\tsub "<<dest<<", "<<lr<<", "<<rr<<endl;
+			asms<<"\tseqz "<<dest<<", "<<dest<<endl;
+		}
+		break;
+	
+	case KOOPA_RBO_GT:
+		if (lhs->kind.tag == KOOPA_RVT_INTEGER && rhs->kind.tag == KOOPA_RVT_INTEGER)
+		{
+			// both are immediate
+			if (lhs->kind.data.integer.value > rhs->kind.data.integer.value)
+			{
+				asms << "\tli " << dest << ", 1" << endl;
+			}
+			else
+			{
+				asms << "\tli " << dest << ", 0" << endl;
+			}
+		}
+		else if (lhs->kind.tag != KOOPA_RVT_INTEGER && rhs->kind.tag == KOOPA_RVT_INTEGER)
+		{
+			string lr=ra->get_pos((const void*)lhs);
+			assert(lr!="");
+			int ri=rhs->kind.data.integer.value;
+			asms<<"\tli "<<dest<<", "<<ri<<endl;
+			asms<<"\tsgt "<<dest<<", "<<lr<<", "<<dest<<endl;
+		}
+		else if (lhs->kind.tag == KOOPA_RVT_INTEGER && rhs->kind.tag != KOOPA_RVT_INTEGER)
+		{
+			string rr=ra->get_pos((const void*)rhs);
+			assert(rr!="");
+			int li=lhs->kind.data.integer.value;
+			asms<<"\tli "<<dest<<", "<<li<<endl;
+			asms<<"\tsgt "<<dest<<", "<<dest<<", "<<rr<<endl;
+		}
+		else
+		{
+			string lr=ra->get_pos(lhs);
+			assert(lr!="");
+			string rr=ra->get_pos(rhs);
+			assert(rr!="");
+			asms<<"\tsgt "<<dest<<", "<<lr<<", "<<rr<<endl;
+		}
+		break;
+
+	case KOOPA_RBO_LT:
+		if (lhs->kind.tag == KOOPA_RVT_INTEGER && rhs->kind.tag == KOOPA_RVT_INTEGER)
+		{
+			// both are immediate
+			if (lhs->kind.data.integer.value < rhs->kind.data.integer.value)
+			{
+				asms << "\tli " << dest << ", 1" << endl;
+			}
+			else
+			{
+				asms << "\tli " << dest << ", 0" << endl;
+			}
+		}
+		else if (lhs->kind.tag != KOOPA_RVT_INTEGER && rhs->kind.tag == KOOPA_RVT_INTEGER)
+		{
+			string lr=ra->get_pos((const void*)lhs);
+			assert(lr!="");
+			int ri=rhs->kind.data.integer.value;
+			asms<<"\tli "<<dest<<", "<<ri<<endl;
+			asms<<"\tslt "<<dest<<", "<<lr<<", "<<dest<<endl;
+		}
+		else if (lhs->kind.tag == KOOPA_RVT_INTEGER && rhs->kind.tag != KOOPA_RVT_INTEGER)
+		{
+			string rr=ra->get_pos((const void*)rhs);
+			assert(rr!="");
+			int li=lhs->kind.data.integer.value;
+			asms<<"\tli "<<dest<<", "<<li<<endl;
+			asms<<"\tslt "<<dest<<", "<<dest<<", "<<rr<<endl;
+		}
+		else
+		{
+			string lr=ra->get_pos(lhs);
+			assert(lr!="");
+			string rr=ra->get_pos(rhs);
+			assert(rr!="");
+			asms<<"\tslt "<<dest<<", "<<lr<<", "<<rr<<endl;
+		}
+		break;
+
+	case KOOPA_RBO_GE:
+		if (lhs->kind.tag == KOOPA_RVT_INTEGER && rhs->kind.tag == KOOPA_RVT_INTEGER)
+		{
+			// both are immediate
+			if (lhs->kind.data.integer.value >= rhs->kind.data.integer.value)
+			{
+				asms << "\tli " << dest << ", 1" << endl;
+			}
+			else
+			{
+				asms << "\tli " << dest << ", 0" << endl;
+			}
+		}
+		else if (lhs->kind.tag != KOOPA_RVT_INTEGER && rhs->kind.tag == KOOPA_RVT_INTEGER)
+		{
+			string lr=ra->get_pos((const void*)lhs);
+			assert(lr!="");
+			int ri=rhs->kind.data.integer.value;
+			asms<<"\tli "<<dest<<", "<<ri<<endl;
+			asms<<"\tslt "<<dest<<", "<<lr<<", "<<dest<<endl;
+			asms<<"\tseqz "<<dest<<", "<<dest<<endl;
+		}
+		else if (lhs->kind.tag == KOOPA_RVT_INTEGER && rhs->kind.tag != KOOPA_RVT_INTEGER)
+		{
+			string rr=ra->get_pos((const void*)rhs);
+			assert(rr!="");
+			int li=lhs->kind.data.integer.value;
+			asms<<"\tli "<<dest<<", "<<li<<endl;
+			asms<<"\tslt "<<dest<<", "<<dest<<", "<<rr<<endl;
+			asms<<"\tseqz "<<dest<<", "<<dest<<endl;
+		}
+		else
+		{
+			string lr=ra->get_pos(lhs);
+			assert(lr!="");
+			string rr=ra->get_pos(rhs);
+			assert(rr!="");
+			asms<<"\tslt "<<dest<<", "<<lr<<", "<<rr<<endl;
+			asms<<"\tseqz "<<dest<<", "<<dest<<endl;
+		}
+		break;
+
+	case KOOPA_RBO_LE:
+		if (lhs->kind.tag == KOOPA_RVT_INTEGER && rhs->kind.tag == KOOPA_RVT_INTEGER)
+		{
+			// both are immediate
+			if (lhs->kind.data.integer.value >= rhs->kind.data.integer.value)
+			{
+				asms << "\tli " << dest << ", 1" << endl;
+			}
+			else
+			{
+				asms << "\tli " << dest << ", 0" << endl;
+			}
+		}
+		else if (lhs->kind.tag != KOOPA_RVT_INTEGER && rhs->kind.tag == KOOPA_RVT_INTEGER)
+		{
+			string lr=ra->get_pos((const void*)lhs);
+			assert(lr!="");
+			int ri=rhs->kind.data.integer.value;
+			asms<<"\tli "<<dest<<", "<<ri<<endl;
+			asms<<"\tsgt "<<dest<<", "<<lr<<", "<<dest<<endl;
+			asms<<"\tseqz "<<dest<<", "<<dest<<endl;
+		}
+		else if (lhs->kind.tag == KOOPA_RVT_INTEGER && rhs->kind.tag != KOOPA_RVT_INTEGER)
+		{
+			string rr=ra->get_pos((const void*)rhs);
+			assert(rr!="");
+			int li=lhs->kind.data.integer.value;
+			asms<<"\tli "<<dest<<", "<<li<<endl;
+			asms<<"\tsgt "<<dest<<", "<<dest<<", "<<rr<<endl;
+			asms<<"\tseqz "<<dest<<", "<<dest<<endl;
+		}
+		else
+		{
+			string lr=ra->get_pos(lhs);
+			assert(lr!="");
+			string rr=ra->get_pos(rhs);
+			assert(rr!="");
+			asms<<"\tsgt "<<dest<<", "<<lr<<", "<<rr<<endl;
+			asms<<"\tseqz "<<dest<<", "<<dest<<endl;
 		}
 		break;
 
@@ -336,25 +492,29 @@ void VisitBin(const koopa_raw_value_t &val, Register_Allocator *ra)
 		}
 		else if (lhs->kind.tag != KOOPA_RVT_INTEGER && rhs->kind.tag == KOOPA_RVT_INTEGER)
 		{
-			//===============================================================
-			// WARNING: DISMISS THE UPPER 20 BITS OF IMMEDIATE NOW!
-			//===============================================================
 			string lr=ra->get_pos((const void*)lhs);
 			assert(lr!="");
 			int ri=rhs->kind.data.integer.value;
-			assert(ri<(1<<12));
-			asms<<"\taddi "<<dest<<", "<<lr<<", "<<ri<<endl;
+			if (ri<RISCV_IMM_THRESHOLD)
+				asms<<"\taddi "<<dest<<", "<<lr<<", "<<ri<<endl;
+			else
+			{
+				asms<<"\tli "<<dest<<", "<<ri<<endl;
+				asms<<"\tadd "<<dest<<", "<<lr<<", "<<dest<<endl;
+			}
 		}
 		else if (lhs->kind.tag == KOOPA_RVT_INTEGER && rhs->kind.tag != KOOPA_RVT_INTEGER)
 		{
-			//===============================================================
-			// WARNING: DISMISS THE UPPER 20 BITS OF IMMEDIATE NOW!
-			//===============================================================
 			string rr=ra->get_pos((const void*)rhs);
 			assert(rr!="");
 			int li=lhs->kind.data.integer.value;
-			assert(li<(1<<12));
-			asms<<"\taddi "<<dest<<", "<<rr<<", "<<li<<endl;
+			if (li<RISCV_IMM_THRESHOLD)
+				asms<<"\taddi "<<dest<<", "<<rr<<", "<<li<<endl;
+			else
+			{
+				asms<<"\tli "<<dest<<", "<<li<<endl;
+				asms<<"\tadd "<<dest<<", "<<rr<<", "<<dest<<endl;
+			}
 		}
 		else
 		{
@@ -374,26 +534,32 @@ void VisitBin(const koopa_raw_value_t &val, Register_Allocator *ra)
 		}
 		else if (lhs->kind.tag != KOOPA_RVT_INTEGER && rhs->kind.tag == KOOPA_RVT_INTEGER)
 		{
-			//===============================================================
-			// WARNING: DISMISS THE UPPER 20 BITS OF IMMEDIATE NOW!
-			//===============================================================
 			string lr=ra->get_pos((const void*)lhs);
 			assert(lr!="");
 			int ri=rhs->kind.data.integer.value;
-			assert(ri<(1<<12));
-			asms<<"\taddi "<<dest<<", "<<lr<<", "<<(-1) * ri<<endl;
+			if (ri<RISCV_IMM_THRESHOLD)
+				asms<<"\taddi "<<dest<<", "<<lr<<", "<<(-1)*ri<<endl;
+			else
+			{
+				asms<<"\tli "<<dest<<", "<<ri<<endl;
+				asms<<"\tsub "<<dest<<", "<<lr<<", "<<dest<<endl;
+			}
 		}
 		else if (lhs->kind.tag == KOOPA_RVT_INTEGER && rhs->kind.tag != KOOPA_RVT_INTEGER)
 		{
-			//===============================================================
-			// WARNING: DISMISS THE UPPER 20 BITS OF IMMEDIATE NOW!
-			//===============================================================
 			string rr=ra->get_pos((const void*)rhs);
 			assert(rr!="");
 			int li=lhs->kind.data.integer.value;
-			assert(li<(1<<12));
-			asms<<"\taddi "<<dest<<", "<<rr<<", "<<(-1) * li<<endl;
-			asms<<"\tneg "<<dest<<", "<<dest<<endl;
+			if (li<RISCV_IMM_THRESHOLD)
+			{
+				asms<<"\taddi "<<dest<<", "<<rr<<", "<<(-1)*li<<endl;
+				asms<<"\tneg "<<dest<<", "<<dest<<endl;
+			}
+			else
+			{
+				asms<<"\tli "<<dest<<", "<<li<<endl;
+				asms<<"\tsub "<<dest<<", "<<dest<<", "<<rr<<endl;
+			}
 		}
 		else
 		{
@@ -402,6 +568,186 @@ void VisitBin(const koopa_raw_value_t &val, Register_Allocator *ra)
 			string rr=ra->get_pos(rhs);
 			assert(rr!="");
 			asms<<"\tsub "<<dest<<", "<<lr<<", "<<rr<<endl;
+		}
+		break;
+
+	case KOOPA_RBO_MUL:
+		if (lhs->kind.tag == KOOPA_RVT_INTEGER && rhs->kind.tag == KOOPA_RVT_INTEGER)
+		{
+			// both are immediate
+			asms << "\tli " << dest << ", " <<lhs->kind.data.integer.value * rhs->kind.data.integer.value<< endl;
+		}
+		else if (lhs->kind.tag != KOOPA_RVT_INTEGER && rhs->kind.tag == KOOPA_RVT_INTEGER)
+		{
+			string lr=ra->get_pos((const void*)lhs);
+			assert(lr!="");
+			int ri=rhs->kind.data.integer.value;
+			asms<<"\tli "<<dest<<", "<<ri<<endl;
+			asms<<"\tmul "<<dest<<", "<<lr<<", "<<dest<<endl;
+		}
+		else if (lhs->kind.tag == KOOPA_RVT_INTEGER && rhs->kind.tag != KOOPA_RVT_INTEGER)
+		{
+			string rr=ra->get_pos((const void*)rhs);
+			assert(rr!="");
+			int li=lhs->kind.data.integer.value;
+			asms<<"\tli "<<dest<<", "<<li<<endl;
+			asms<<"\tmul "<<dest<<", "<<rr<<", "<<dest<<endl;
+		}
+		else
+		{
+			string lr=ra->get_pos(lhs);
+			assert(lr!="");
+			string rr=ra->get_pos(rhs);
+			assert(rr!="");
+			asms<<"\tmul "<<dest<<", "<<lr<<", "<<rr<<endl;
+		}
+		break;
+
+	case KOOPA_RBO_DIV:
+		if (lhs->kind.tag == KOOPA_RVT_INTEGER && rhs->kind.tag == KOOPA_RVT_INTEGER)
+		{
+			// both are immediate
+			asms << "\tli " << dest << ", " <<lhs->kind.data.integer.value / rhs->kind.data.integer.value<< endl;
+		}
+		else if (lhs->kind.tag != KOOPA_RVT_INTEGER && rhs->kind.tag == KOOPA_RVT_INTEGER)
+		{
+			string lr=ra->get_pos((const void*)lhs);
+			assert(lr!="");
+			int ri=rhs->kind.data.integer.value;
+			asms<<"\tli "<<dest<<", "<<ri<<endl;
+			asms<<"\tdiv "<<dest<<", "<<lr<<", "<<dest<<endl;
+		}
+		else if (lhs->kind.tag == KOOPA_RVT_INTEGER && rhs->kind.tag != KOOPA_RVT_INTEGER)
+		{
+			string rr=ra->get_pos((const void*)rhs);
+			assert(rr!="");
+			int li=lhs->kind.data.integer.value;
+			asms<<"\tli "<<dest<<", "<<li<<endl;
+			asms<<"\tdiv "<<dest<<", "<<dest<<", "<<rr<<endl;
+		}
+		else
+		{
+			string lr=ra->get_pos(lhs);
+			assert(lr!="");
+			string rr=ra->get_pos(rhs);
+			assert(rr!="");
+			asms<<"\tdiv "<<dest<<", "<<lr<<", "<<rr<<endl;
+		}
+		break;
+	
+	case KOOPA_RBO_MOD:
+		if (lhs->kind.tag == KOOPA_RVT_INTEGER && rhs->kind.tag == KOOPA_RVT_INTEGER)
+		{
+			// both are immediate
+			asms << "\tli " << dest << ", " <<lhs->kind.data.integer.value % rhs->kind.data.integer.value<< endl;
+		}
+		else if (lhs->kind.tag != KOOPA_RVT_INTEGER && rhs->kind.tag == KOOPA_RVT_INTEGER)
+		{
+			string lr=ra->get_pos((const void*)lhs);
+			assert(lr!="");
+			int ri=rhs->kind.data.integer.value;
+			asms<<"\tli "<<dest<<", "<<ri<<endl;
+			asms<<"\trem "<<dest<<", "<<lr<<", "<<dest<<endl;
+		}
+		else if (lhs->kind.tag == KOOPA_RVT_INTEGER && rhs->kind.tag != KOOPA_RVT_INTEGER)
+		{
+			string rr=ra->get_pos((const void*)rhs);
+			assert(rr!="");
+			int li=lhs->kind.data.integer.value;
+			asms<<"\tli "<<dest<<", "<<li<<endl;
+			asms<<"\trem "<<dest<<", "<<dest<<", "<<rr<<endl;
+		}
+		else
+		{
+			string lr=ra->get_pos(lhs);
+			assert(lr!="");
+			string rr=ra->get_pos(rhs);
+			assert(rr!="");
+			asms<<"\trem "<<dest<<", "<<lr<<", "<<rr<<endl;
+		}
+		break;
+	
+	case KOOPA_RBO_AND:
+		if (lhs->kind.tag == KOOPA_RVT_INTEGER && rhs->kind.tag == KOOPA_RVT_INTEGER)
+		{
+			// both are immediate
+			asms << "\tli " << dest << ", " <<(lhs->kind.data.integer.value & rhs->kind.data.integer.value)<< endl;
+		}
+		else if (lhs->kind.tag != KOOPA_RVT_INTEGER && rhs->kind.tag == KOOPA_RVT_INTEGER)
+		{
+			string lr=ra->get_pos((const void*)lhs);
+			assert(lr!="");
+			int ri=rhs->kind.data.integer.value;
+			if (ri<RISCV_IMM_THRESHOLD)
+				asms<<"\tandi "<<dest<<", "<<lr<<", "<<ri<<endl;
+			else
+			{
+				asms<<"\tli "<<dest<<", "<<ri<<endl;
+				asms<<"\tand "<<dest<<", "<<lr<<", "<<dest<<endl;
+			}
+		}
+		else if (lhs->kind.tag == KOOPA_RVT_INTEGER && rhs->kind.tag != KOOPA_RVT_INTEGER)
+		{
+			string rr=ra->get_pos((const void*)rhs);
+			assert(rr!="");
+			int li=lhs->kind.data.integer.value;
+			if (li<RISCV_IMM_THRESHOLD)
+				asms<<"\tandi "<<dest<<", "<<rr<<", "<<li<<endl;
+			else
+			{
+				asms<<"\tli "<<dest<<", "<<li<<endl;
+				asms<<"\tand "<<dest<<", "<<rr<<", "<<dest<<endl;
+			}
+		}
+		else
+		{
+			string lr=ra->get_pos(lhs);
+			assert(lr!="");
+			string rr=ra->get_pos(rhs);
+			assert(rr!="");
+			asms<<"\tand "<<dest<<", "<<lr<<", "<<rr<<endl;
+		}
+		break;
+	
+	case KOOPA_RBO_OR:
+		if (lhs->kind.tag == KOOPA_RVT_INTEGER && rhs->kind.tag == KOOPA_RVT_INTEGER)
+		{
+			// both are immediate
+			asms << "\tli " << dest << ", " <<(lhs->kind.data.integer.value | rhs->kind.data.integer.value)<< endl;
+		}
+		else if (lhs->kind.tag != KOOPA_RVT_INTEGER && rhs->kind.tag == KOOPA_RVT_INTEGER)
+		{
+			string lr=ra->get_pos((const void*)lhs);
+			assert(lr!="");
+			int ri=rhs->kind.data.integer.value;
+			if (ri<RISCV_IMM_THRESHOLD)
+				asms<<"\tori "<<dest<<", "<<lr<<", "<<ri<<endl;
+			else
+			{
+				asms<<"\tli "<<dest<<", "<<ri<<endl;
+				asms<<"\tor "<<dest<<", "<<lr<<", "<<dest<<endl;
+			}
+		}
+		else if (lhs->kind.tag == KOOPA_RVT_INTEGER && rhs->kind.tag != KOOPA_RVT_INTEGER)
+		{
+			string rr=ra->get_pos((const void*)rhs);
+			assert(rr!="");
+			int li=lhs->kind.data.integer.value;
+			if (li<RISCV_IMM_THRESHOLD)
+				asms<<"\tori "<<dest<<", "<<rr<<", "<<li<<endl;
+			else
+			{
+				asms<<"\tli "<<dest<<", "<<li<<endl;
+				asms<<"\tor "<<dest<<", "<<rr<<", "<<dest<<endl;
+			}
+		}
+		else
+		{
+			string lr=ra->get_pos(lhs);
+			assert(lr!="");
+			string rr=ra->get_pos(rhs);
+			assert(rr!="");
+			asms<<"\tor "<<dest<<", "<<lr<<", "<<rr<<endl;
 		}
 		break;
 

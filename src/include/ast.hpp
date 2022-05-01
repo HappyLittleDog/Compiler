@@ -74,6 +74,66 @@ public:
     void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) const override;
 };
 
+class LOrExp : public BaseAst
+{
+public:
+    int cur_derivation_;
+    unique_ptr<BaseAst> subexp1_;
+    unique_ptr<BaseAst> subexp2_;
+    void Print(string indent="") const override;
+    void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) const override;
+};
+
+class LAndExp : public BaseAst
+{
+public:
+    int cur_derivation_;
+    unique_ptr<BaseAst> subexp1_;
+    unique_ptr<BaseAst> subexp2_;
+    void Print(string indent="") const override;
+    void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) const override;
+};
+
+class EqExp : public BaseAst
+{
+public:
+    int cur_derivation_;
+    unique_ptr<BaseAst> subexp1_;
+    unique_ptr<BaseAst> subexp2_;
+    void Print(string indent="") const override;
+    void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) const override;
+};
+
+class RelExp : public BaseAst
+{
+public:
+    int cur_derivation_;
+    unique_ptr<BaseAst> subexp1_;
+    unique_ptr<BaseAst> subexp2_;
+    void Print(string indent="") const override;
+    void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) const override;
+};
+
+class AddExp : public BaseAst
+{
+public:
+    int cur_derivation_;
+    unique_ptr<BaseAst> subexp1_;
+    unique_ptr<BaseAst> subexp2_;
+    void Print(string indent="") const override;
+    void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) const override;
+};
+
+class MulExp : public BaseAst
+{
+public:
+    int cur_derivation_;
+    unique_ptr<BaseAst> subexp1_;
+    unique_ptr<BaseAst> subexp2_;
+    void Print(string indent="") const override;
+    void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) const override;
+};
+
 class UnaryExp : public BaseAst
 {
 public:
