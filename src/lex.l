@@ -26,12 +26,14 @@ IDChar                  [0-9A-Za-z_]
 {LineComment}|{LongComment}                             {;}
 "int"                                                   {return INT;}
 "return"                                                {return RETURN;}
-[(){};]                                                 {return yytext[0];}
+"const"                                                 {return CONST;}
+[(){};,]                                                {return yytext[0];}
 "+"                                                     {return PLUS;}
 "\-"                                                    {return MINUS;}
 "\*"                                                    {return MULT;}
 "/"                                                     {return DIV;}
 "%"                                                     {return MOD;}
+"="                                                     {return EQ;}
 "=="                                                    {return EQQ;}
 "!="                                                    {return NEQ;}
 "<"                                                     {return LT;}

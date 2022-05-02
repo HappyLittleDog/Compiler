@@ -19,7 +19,7 @@ LDFLAGS :=
 LOGMODE :=
 
 # Debug flags
-DEBUG ?= 1
+DEBUG ?= 0
 ifeq ($(DEBUG), 0)
 CFLAGS += -g -O0
 CXXFLAGS += -g -O0
@@ -105,7 +105,7 @@ clean:
 
 # 0: koopa
 # 1: riscv
-TESTMODE := 0
+TESTMODE := 1
 TESTFILENAME := retexp
 TESTFLAG :=
 TESTOUTEXT :=

@@ -1,6 +1,7 @@
 #include "include/ast.hpp"
 using namespace std;
 
+ConstSymTab CurConstSymTab;
 int temp_var_counter=0;
 int new_tempvar()
 {
@@ -87,9 +88,17 @@ void Stmt::Print(string indent) const
 void Stmt::Dump(basic_ostream<char>& fs, string indent, int dest) const
 {
     // RETURN Exp ';'
-    int tpvar=new_tempvar();
-    retv_->Dump(fs,indent,tpvar);
-    fs<<indent<<"ret %"<<tpvar<<endl;
+    if (retv_->IsConst())
+    {
+        // const expression
+        fs<<indent<<"ret "<<retv_->CalcVal()<<endl;
+    }
+    else
+    {
+        int tpvar=new_tempvar();
+        retv_->Dump(fs,indent,tpvar);
+        fs<<indent<<"ret %"<<tpvar<<endl;
+    }
 }
 
 void Exp::Print(string indent) const
@@ -155,6 +164,22 @@ void LOrExp::Dump(basic_ostream<char>& fs, string indent, int dest) const
     }
 }
 
+int LOrExp::CalcVal() const
+{
+    switch (cur_derivation_)
+    {
+    case 0: // LAndExp
+        return subexp1_->CalcVal();
+
+    case 1: // LOrExp OR LAndExp
+        return subexp1_->CalcVal() || subexp2_->CalcVal();
+    
+    default:
+        LOG_ERROR("@LOrExp::calcval: Unrecognized cur_derivation_=%d",cur_derivation_);
+        return 0;
+    }
+}
+
 void LAndExp::Print(string indent) const
 {
     cout<<indent<<"LAndExp {\n";
@@ -202,6 +227,22 @@ void LAndExp::Dump(basic_ostream<char>& fs, string indent, int dest) const
     default:
         LOG_ERROR("@LAndExp::dump: Unrecognized cur_derivation_=%d",cur_derivation_);
         break;
+    }
+}
+
+int LAndExp::CalcVal() const
+{
+    switch (cur_derivation_)
+    {
+    case 0: // EqExp
+        return subexp1_->CalcVal();
+
+    case 1: // LAndExp AND EqExp
+        return subexp1_->CalcVal() && subexp2_->CalcVal();
+    
+    default:
+        LOG_ERROR("@LAndExp::calcval: Unrecognized cur_derivation_=%d",cur_derivation_);
+        return 0;
     }
 }
 
@@ -262,6 +303,25 @@ void EqExp::Dump(basic_ostream<char>& fs, string indent, int dest) const
     default:
         LOG_ERROR("@EqExp::dump: Unrecognized cur_derivation_=%d",cur_derivation_);
         break;
+    }
+}
+
+int EqExp::CalcVal() const
+{
+    switch (cur_derivation_)
+    {
+    case 0: // RelExp
+        return subexp1_->CalcVal();
+
+    case 1: // EqExp EQQ RelExp
+        return subexp1_->CalcVal() == subexp2_->CalcVal();
+
+    case 2: // EqExp NEQ RelExp
+        return subexp1_->CalcVal() != subexp2_->CalcVal();
+    
+    default:
+        LOG_ERROR("@EqExp::calcval: Unrecognized cur_derivation_=%d",cur_derivation_);
+        return 0;
     }
 }
 
@@ -353,6 +413,31 @@ void RelExp::Dump(basic_ostream<char>& fs, string indent, int dest) const
     }
 }
 
+int RelExp::CalcVal() const
+{
+    switch (cur_derivation_)
+    {
+    case 0: // AddExp
+        return subexp1_->CalcVal();
+
+    case 1: // RelExp LT AddExp
+        return subexp1_->CalcVal() < subexp2_->CalcVal();
+
+    case 2: // RelExp GT AddExp
+        return subexp1_->CalcVal() > subexp2_->CalcVal();
+    
+    case 3: // RelExp LEQ AddExp
+        return subexp1_->CalcVal() <= subexp2_->CalcVal();
+
+    case 4: // RelExp GEQ AddExp
+        return subexp1_->CalcVal() >= subexp2_->CalcVal();
+    
+    default:
+        LOG_ERROR("@RelExp::calcval: Unrecognized cur_derivation_=%d",cur_derivation_);
+        return 0;
+    }
+}
+
 void AddExp::Print(string indent) const
 {
     cout<<indent<<"AddExp {\n";
@@ -410,6 +495,25 @@ void AddExp::Dump(basic_ostream<char>& fs, string indent, int dest) const
     default:
         LOG_ERROR("@AddExp::dump: Unrecognized cur_derivation_=%d",cur_derivation_);
         break;
+    }
+}
+
+int AddExp::CalcVal() const
+{
+    switch (cur_derivation_)
+    {
+    case 0: // MulExp
+        return subexp1_->CalcVal();
+    
+    case 1: // AddExp PLUS MulExp
+        return subexp1_->CalcVal() + subexp2_->CalcVal();
+
+    case 2: // AddExp MINUS MulExp
+        return subexp1_->CalcVal() - subexp2_->CalcVal();
+
+    default:
+        LOG_ERROR("@AddExp::calcval: Unrecognized cur_derivation_=%d",cur_derivation_);
+        return 0;
     }
 }
 
@@ -487,6 +591,28 @@ void MulExp::Dump(basic_ostream<char>& fs, string indent, int dest) const
     }
 }
 
+int MulExp::CalcVal() const
+{
+    switch (cur_derivation_)
+    {
+    case 0: // UnaryExp
+        return subexp1_->CalcVal();
+    
+    case 1: // MulExp MULT UnaryExp
+        return subexp1_->CalcVal() * subexp2_->CalcVal();
+
+    case 2: // MulExp DIV UnaryExp
+        return subexp1_->CalcVal() / subexp2_->CalcVal();
+
+    case 3: // MulExp MOD UnaryExp
+        return subexp1_->CalcVal() % subexp2_->CalcVal();
+
+    default:
+        LOG_ERROR("@MulExp::print: Unrecognized cur_derivation_=%d",cur_derivation_);
+        return 0;
+    }
+}
+
 void UnaryExp::Print(string indent) const
 {
     cout<<indent<<"UnaryExp {\n";
@@ -547,6 +673,28 @@ void UnaryExp::Dump(basic_ostream<char>& fs, string indent, int dest) const
     }
 }
 
+int UnaryExp::CalcVal() const
+{
+    switch (cur_derivation_)
+    {
+    case 0: // PLUS UnaryExp
+        return subexp_->CalcVal();
+    
+    case 1: // MINUS UnaryExp
+        return (-1)*subexp_->CalcVal();
+
+    case 2: // NOT UnaryExp
+        return !subexp_->CalcVal();
+    
+    case 3: // PrimaryExp
+        return subexp_->CalcVal();
+
+    default:
+        LOG_ERROR("@UnaryExp::calcval: Unrecognized cur_derivation_=%d",cur_derivation_);
+        return 0;
+    }
+}
+
 void PrimaryExp::Print(string indent) const
 {
     cout<<indent<<"PrimaryExp: {\n";
@@ -558,6 +706,11 @@ void PrimaryExp::Print(string indent) const
 void PrimaryExp::Dump(basic_ostream<char>& fs, string indent, int dest) const
 {
     subexp_->Dump(fs,indent,dest);
+}
+
+int PrimaryExp::CalcVal() const
+{
+    return subexp_->CalcVal();
 }
 
 void Number::Print(string indent) const
