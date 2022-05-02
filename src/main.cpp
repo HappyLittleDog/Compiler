@@ -47,8 +47,8 @@ int main(int argc, const char *argv[]) {
             LOG_ERROR("can not open output file %s", output);
             exit(-1);
         }
-        ast->Dump(fs);
         ast->Print();
+        ast->Dump(fs);
         fs.close();
     }
     else if (string(mode)==string("-riscv"))

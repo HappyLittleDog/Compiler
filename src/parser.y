@@ -21,10 +21,10 @@ void yyerror(std::unique_ptr<BaseAst> &ast, const char *s);
     std::string* str_val;
     BaseAst* ast_val;
 }
-%token INT RETURN PLUS MINUS MULT DIV MOD EQQ NEQ LT GT LEQ GEQ NOT AND OR
+%token INT RETURN PLUS MINUS MULT DIV MOD EQQ NEQ LT GT LEQ GEQ NOT AND OR EQ CONST
 %token <str_val> IDENT
 %token <int_val> INT_CONST
-%type <ast_val> FuncDef FuncType Block Stmt Exp PrimaryExp UnaryExp AddExp MulExp RelExp EqExp LAndExp LOrExp Number
+%type <ast_val> FuncDef FuncType Block Stmt Exp PrimaryExp UnaryExp AddExp MulExp RelExp EqExp LAndExp LOrExp Number Decl ConstDecl BType ConstDefs ConstDef ConstInitVal BlockItems BlockItem LVal ConstExp VarDecl VarDefs VarDef InitVal
 %%
 CompUnit
     :   FuncDef 
@@ -54,10 +54,168 @@ FuncType
     ;
 
 Block
-    :   '{' Stmt '}'
+    :   '{' BlockItems '}'
         {
             auto cur=new Block();
-            cur->stmt_=unique_ptr<BaseAst>($2);
+            cur->items_=unique_ptr<BaseAst>($2);
+            $$=cur;
+        }
+    ;
+
+BlockItems
+    :   BlockItem
+        {
+            auto cur=new BlockItems();
+            cur->items_.push_back(unique_ptr<BaseAst>($1));
+            $$=cur;
+        }
+    |   BlockItems BlockItem
+        {
+            auto cur=reinterpret_cast<BlockItems*>($1);
+            cur->items_.push_back(unique_ptr<BaseAst>($2));
+            $$=cur;
+        }
+    ;
+
+BlockItem
+    :   Decl
+        {
+            auto cur=new BlockItem();
+            cur->cur_derivation_=0;
+            cur->item_=unique_ptr<BaseAst>($1);
+            $$=cur;
+        }
+    |   Stmt
+        {
+            auto cur=new BlockItem();
+            cur->cur_derivation_=1;
+            cur->item_=unique_ptr<BaseAst>($1);
+            $$=cur;
+        }
+    ;
+
+Decl
+	:	ConstDecl
+		{
+            auto cur=new Decl();
+            cur->item_=unique_ptr<BaseAst>($1);
+            $$=cur;
+		}
+    |   VarDecl
+        {
+            auto cur=new Decl();
+            cur->item_=unique_ptr<BaseAst>($1);
+            $$=cur;
+        }
+	;
+
+ConstDecl
+	:	CONST BType ConstDefs ';'
+		{
+            auto cur=new ConstDecl();
+            cur->item_=unique_ptr<BaseAst>($3);
+            $$=cur;
+		}
+	;
+
+VarDecl
+    :   BType VarDefs ';'
+        {
+            auto cur=new VarDecl();
+            cur->item_=unique_ptr<BaseAst>($2);
+            $$=cur;
+        }
+    ;
+
+BType
+	:	INT {;}
+	;
+
+ConstDefs
+	:	ConstDef
+		{
+            auto cur=new ConstDefs();
+            cur->defs_.push_back(unique_ptr<BaseAst>($1));
+            $$=cur;
+		}
+	|	ConstDefs ',' ConstDef
+		{
+            auto cur=reinterpret_cast<ConstDefs*>($1);
+            cur->defs_.push_back(unique_ptr<BaseAst>($3));
+            $$=cur;
+		}
+	;
+
+ConstDef
+	:	IDENT EQ ConstInitVal
+		{
+            auto cur=new ConstDef();
+            cur->ident_ = *($1);
+            cur->initval_=unique_ptr<BaseAst>($3);
+            CurConstSymTab.insert(cur->ident_, cur->initval_->CalcVal());
+            $$=cur;
+		}
+	;
+
+ConstInitVal
+	:	ConstExp
+		{
+            auto cur=new ConstInitVal();
+            cur->subexp_=unique_ptr<BaseAst>($1);
+            $$=cur;
+		}
+	;
+
+ConstExp
+	:	Exp
+		{
+            auto cur=new ConstExp();
+            cur->subexp_=unique_ptr<BaseAst>($1);
+            $$=cur;
+		}
+	;
+
+VarDefs
+    :   VarDef
+        {
+            auto cur=new VarDefs();
+            cur->defs_.push_back(unique_ptr<BaseAst>($1));
+            $$=cur;
+        }
+    |   VarDefs ',' VarDef
+        {
+            auto cur=reinterpret_cast<VarDefs*>($1);
+            cur->defs_.push_back(unique_ptr<BaseAst>($3));
+            $$=cur;
+        }
+    ;
+
+VarDef
+    :   IDENT
+        {
+            auto cur=new VarDef();
+            cur->cur_derivation_=0;
+            cur->ident_ = *($1);
+            CurVarSymTab.insert(cur->ident_);
+            $$=cur;
+        }
+    |   IDENT EQ InitVal
+        {
+            auto cur=new VarDef();
+            cur->cur_derivation_=1;
+            cur->ident_ = *($1);
+            cur->initval_=unique_ptr<BaseAst>($3);
+            CurVarSymTab.insert(cur->ident_);
+            $$=cur;
+        }
+    ;
+
+InitVal
+    :   Exp
+        {
+            auto cur=new Exp();
+            cur->subexp_=unique_ptr<BaseAst>($1);
+            cur->isconst_=cur->subexp_->IsConst();
             $$=cur;
         }
     ;
@@ -66,7 +224,17 @@ Stmt
     :   RETURN Exp ';'
         {
             auto cur=new Stmt();
-            cur->retv_=unique_ptr<BaseAst>($2);
+            cur->cur_derivation_=0;
+            cur->subexp1_=unique_ptr<BaseAst>($2);
+            $$=cur;
+        }
+    |   LVal EQ Exp ';'
+        {
+            auto cur=new Stmt();
+            cur->cur_derivation_=1;
+            cur->subexp1_=unique_ptr<BaseAst>($1);
+            // LOG_DEBUG("cur_var: %s @ %p", cur->subexp1_->GetIdent().c_str(), (void*)cur);
+            cur->subexp2_=unique_ptr<BaseAst>($3);
             $$=cur;
         }
     ;
@@ -76,6 +244,7 @@ Exp
         {
             auto cur=new Exp();
             cur->subexp_=unique_ptr<BaseAst>($1);
+            cur->isconst_=cur->subexp_->IsConst();
             $$=cur;
         }
     ;
@@ -87,6 +256,7 @@ LOrExp
             cur->cur_derivation_=0;
             cur->subexp1_=unique_ptr<BaseAst>($1);
             cur->subexp2_=nullptr;
+            cur->isconst_=cur->subexp1_->IsConst();
             $$=cur;
         }
     |   LOrExp OR LAndExp
@@ -95,6 +265,7 @@ LOrExp
             cur->cur_derivation_=1;
             cur->subexp1_=unique_ptr<BaseAst>($1);
             cur->subexp2_=unique_ptr<BaseAst>($3);
+            cur->isconst_=cur->subexp1_->IsConst() && cur->subexp2_->IsConst();
             $$=cur;
         }
     ;
@@ -106,6 +277,7 @@ LAndExp
             cur->cur_derivation_=0;
             cur->subexp1_=unique_ptr<BaseAst>($1);
             cur->subexp2_=nullptr;
+            cur->isconst_=cur->subexp1_->IsConst();
             $$=cur;
         }
     |   LAndExp AND EqExp
@@ -114,6 +286,7 @@ LAndExp
             cur->cur_derivation_=1;
             cur->subexp1_=unique_ptr<BaseAst>($1);
             cur->subexp2_=unique_ptr<BaseAst>($3);
+            cur->isconst_=cur->subexp1_->IsConst() && cur->subexp2_->IsConst();
             $$=cur;
         }
     ;
@@ -125,6 +298,7 @@ EqExp
             cur->cur_derivation_=0;
             cur->subexp1_=unique_ptr<BaseAst>($1);
             cur->subexp2_=nullptr;
+            cur->isconst_=cur->subexp1_->IsConst();
             $$=cur;
         }
     |   EqExp EQQ RelExp
@@ -133,6 +307,7 @@ EqExp
             cur->cur_derivation_=1;
             cur->subexp1_=unique_ptr<BaseAst>($1);
             cur->subexp2_=unique_ptr<BaseAst>($3);
+            cur->isconst_=cur->subexp1_->IsConst() && cur->subexp2_->IsConst();
             $$=cur;
         }
     |   EqExp NEQ RelExp
@@ -141,6 +316,7 @@ EqExp
             cur->cur_derivation_=2;
             cur->subexp1_=unique_ptr<BaseAst>($1);
             cur->subexp2_=unique_ptr<BaseAst>($3);
+            cur->isconst_=cur->subexp1_->IsConst() && cur->subexp2_->IsConst();
             $$=cur;
         }
     ;
@@ -152,6 +328,7 @@ RelExp
             cur->cur_derivation_=0;
             cur->subexp1_=unique_ptr<BaseAst>($1);
             cur->subexp2_=nullptr;
+            cur->isconst_=cur->subexp1_->IsConst();
             $$=cur;
         }
     |   RelExp LT AddExp
@@ -160,6 +337,7 @@ RelExp
             cur->cur_derivation_=1;
             cur->subexp1_=unique_ptr<BaseAst>($1);
             cur->subexp2_=unique_ptr<BaseAst>($3);
+            cur->isconst_=cur->subexp1_->IsConst() && cur->subexp2_->IsConst();
             $$=cur;
         }
     |   RelExp GT AddExp
@@ -168,6 +346,7 @@ RelExp
             cur->cur_derivation_=2;
             cur->subexp1_=unique_ptr<BaseAst>($1);
             cur->subexp2_=unique_ptr<BaseAst>($3);
+            cur->isconst_=cur->subexp1_->IsConst() && cur->subexp2_->IsConst();
             $$=cur;
         }
     |   RelExp LEQ AddExp
@@ -176,6 +355,7 @@ RelExp
             cur->cur_derivation_=3;
             cur->subexp1_=unique_ptr<BaseAst>($1);
             cur->subexp2_=unique_ptr<BaseAst>($3);
+            cur->isconst_=cur->subexp1_->IsConst() && cur->subexp2_->IsConst();
             $$=cur;
         }
     |   RelExp GEQ AddExp
@@ -184,6 +364,7 @@ RelExp
             cur->cur_derivation_=4;
             cur->subexp1_=unique_ptr<BaseAst>($1);
             cur->subexp2_=unique_ptr<BaseAst>($3);
+            cur->isconst_=cur->subexp1_->IsConst() && cur->subexp2_->IsConst();
             $$=cur;
         }
     ;
@@ -195,6 +376,7 @@ AddExp
             cur->cur_derivation_=0;
             cur->subexp1_=unique_ptr<BaseAst>($1);
             cur->subexp2_=nullptr;
+            cur->isconst_=cur->subexp1_->IsConst();
             $$=cur;
         }
     |   AddExp PLUS MulExp
@@ -203,6 +385,7 @@ AddExp
             cur->cur_derivation_=1;
             cur->subexp1_=unique_ptr<BaseAst>($1);
             cur->subexp2_=unique_ptr<BaseAst>($3);
+            cur->isconst_=cur->subexp1_->IsConst() && cur->subexp2_->IsConst();
             $$=cur;
         }
     |   AddExp MINUS MulExp
@@ -211,6 +394,7 @@ AddExp
             cur->cur_derivation_=2;
             cur->subexp1_=unique_ptr<BaseAst>($1);
             cur->subexp2_=unique_ptr<BaseAst>($3);
+            cur->isconst_=cur->subexp1_->IsConst() && cur->subexp2_->IsConst();
             $$=cur;
         }
     ;
@@ -222,6 +406,7 @@ MulExp
             cur->cur_derivation_=0;
             cur->subexp1_=unique_ptr<BaseAst>($1);
             cur->subexp2_=nullptr;
+            cur->isconst_=cur->subexp1_->IsConst();
             $$=cur;
         }
     |   MulExp MULT UnaryExp
@@ -230,6 +415,7 @@ MulExp
             cur->cur_derivation_=1;
             cur->subexp1_=unique_ptr<BaseAst>($1);
             cur->subexp2_=unique_ptr<BaseAst>($3);
+            cur->isconst_=cur->subexp1_->IsConst() && cur->subexp2_->IsConst();
             $$=cur;
         }
     |   MulExp DIV UnaryExp
@@ -238,6 +424,7 @@ MulExp
             cur->cur_derivation_=2;
             cur->subexp1_=unique_ptr<BaseAst>($1);
             cur->subexp2_=unique_ptr<BaseAst>($3);
+            cur->isconst_=cur->subexp1_->IsConst() && cur->subexp2_->IsConst();
             $$=cur;
         }
     |   MulExp MOD UnaryExp
@@ -246,6 +433,7 @@ MulExp
             cur->cur_derivation_=3;
             cur->subexp1_=unique_ptr<BaseAst>($1);
             cur->subexp2_=unique_ptr<BaseAst>($3);
+            cur->isconst_=cur->subexp1_->IsConst() && cur->subexp2_->IsConst();
             $$=cur;
         }
     ;
@@ -256,6 +444,7 @@ UnaryExp
             auto cur=new UnaryExp();
             cur->cur_derivation_=0;
             cur->subexp_=unique_ptr<BaseAst>($2);
+            cur->isconst_=cur->subexp_->IsConst();
             $$=cur;
         }
     |   MINUS UnaryExp
@@ -263,6 +452,7 @@ UnaryExp
             auto cur=new UnaryExp();
             cur->cur_derivation_=1;
             cur->subexp_=unique_ptr<BaseAst>($2);
+            cur->isconst_=cur->subexp_->IsConst();
             $$=cur;
         }
     |   NOT UnaryExp
@@ -270,6 +460,7 @@ UnaryExp
             auto cur=new UnaryExp();
             cur->cur_derivation_=2;
             cur->subexp_=unique_ptr<BaseAst>($2);
+            cur->isconst_=cur->subexp_->IsConst();
             $$=cur;
         }
     |   PrimaryExp
@@ -277,6 +468,7 @@ UnaryExp
             auto cur=new UnaryExp();
             cur->cur_derivation_=3;
             cur->subexp_=unique_ptr<BaseAst>($1);
+            cur->isconst_=cur->subexp_->IsConst();
             $$=cur;
         }
     ;
@@ -287,16 +479,36 @@ PrimaryExp
             auto cur=new PrimaryExp();
             cur->cur_derivation_=0;
             cur->subexp_=unique_ptr<BaseAst>($2);
+            cur->isconst_=cur->subexp_->IsConst();
             $$=cur;
         }
     |   Number
         {
             auto cur=new PrimaryExp();
+            cur->isconst_=true;
             cur->cur_derivation_=1;
             cur->subexp_=unique_ptr<BaseAst>($1);
             $$=cur;
         }
+    |	LVal
+		{
+			auto cur=new PrimaryExp();
+            cur->cur_derivation_=2;
+            cur->subexp_=unique_ptr<BaseAst>($1);
+            cur->isconst_=cur->subexp_->IsConst();
+            $$=cur;
+		}
     ;
+
+LVal
+	:	IDENT
+		{
+            auto cur=new LVal();
+            cur->ident_ = *($1);
+            cur->isconst_=CurConstSymTab.exists(cur->ident_);
+            $$=cur;
+		}
+	;
 
 Number
     :   INT_CONST

@@ -19,15 +19,15 @@ LDFLAGS :=
 LOGMODE :=
 
 # Debug flags
-DEBUG ?= 1
+DEBUG ?= 0
 ifeq ($(DEBUG), 0)
 CFLAGS += -g -O0
 CXXFLAGS += -g -O0
-LOGMODE = DISTRIBUTEMODE
+LOGMODE = DEBUGMODE
 else
 CFLAGS += -O2
 CXXFLAGS += -O2
-LOGMODE = DEBUGMODE
+LOGMODE = DISTRIBUTEMODE
 endif
 
 # Compilers
@@ -106,7 +106,7 @@ clean:
 # 0: koopa
 # 1: riscv
 TESTMODE := 0
-TESTFILENAME := retexp
+TESTFILENAME := var
 TESTFLAG :=
 TESTOUTEXT :=
 ifeq ($(TESTMODE),0)
@@ -117,7 +117,8 @@ TESTFLAG = -riscv
 TESTOUTEXT = S
 endif
 
-test: *
+.PHONY:test
+test:
 	build/compiler $(TESTFLAG) test/$(TESTFILENAME).c -o test/$(TESTFILENAME).$(TESTOUTEXT)
 
 koopa: test/$(TESTFILENAME).koopa
