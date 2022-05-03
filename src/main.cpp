@@ -37,7 +37,7 @@ int main(int argc, const char *argv[]) {
     unique_ptr<BaseAst> ast;
     auto ret = yyparse(ast);
     assert(!ret);
-    ast->Scan();
+    // ast->Scan();
 
     if (string(mode)==string("-koopa"))
     {

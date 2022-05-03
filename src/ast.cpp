@@ -16,7 +16,14 @@ int new_srcvar()
     return src_var_counter;
 }
 
-void CompUnit::Print(string indent) const
+int entry_counter=0;
+int new_entry()
+{
+    entry_counter++;
+    return entry_counter;
+}
+
+void CompUnit::Print(string indent)
 {
     cout<<indent<<"CompUnit {\n";
     string curindent=indent+"|\t";
@@ -24,17 +31,12 @@ void CompUnit::Print(string indent) const
     cout<<indent<<"}\n";
 }
 
-void CompUnit::Dump(basic_ostream<char>& fs, string indent, int dest) const
+void CompUnit::Dump(basic_ostream<char>& fs, string indent, int dest)
 {
     funcdef_->Dump(fs,indent);
 }
 
-void CompUnit::Scan()
-{
-    funcdef_->Scan();
-}
-
-void FuncDef::Print(string indent) const
+void FuncDef::Print(string indent)
 {
     cout<<indent<<"FuncDef {\n";
     string curindent=indent+"|\t";
@@ -44,16 +46,17 @@ void FuncDef::Print(string indent) const
     cout<<indent<<"}\n";
 }
 
-void FuncDef::Dump(basic_ostream<char>& fs, string indent, int dest) const
+void FuncDef::Dump(basic_ostream<char>& fs, string indent, int dest)
 {
     fs<<indent<<"fun @"<<ident_<<"()";
     functype_->Dump(fs,"");
     fs<<indent<<" {"<<endl;
+    fs<<indent<<"\%entry_"<<new_entry()<<":"<<endl;
     block_->Dump(fs,indent);
     fs<<indent<<"}"<<endl;
 }
 
-void FuncType::Print(string indent) const
+void FuncType::Print(string indent)
 {
     if (rettype_==DataType::INT)
         cout<<indent<<"FuncType: int;\n";
@@ -63,7 +66,7 @@ void FuncType::Print(string indent) const
         cout<<indent<<"FuncType: ???\n";
 }
 
-void FuncType::Dump(basic_ostream<char>& fs, string indent, int dest) const
+void FuncType::Dump(basic_ostream<char>& fs, string indent, int dest)
 {
     if (rettype_==DataType::INT)
         fs<<indent<<": i32";
@@ -71,7 +74,7 @@ void FuncType::Dump(basic_ostream<char>& fs, string indent, int dest) const
         fs<<indent<<"";
 }
 
-void Block::Print(string indent) const
+void Block::Print(string indent)
 {
     cout<<indent<<"Block {\n";
     string curindent=indent+"|\t";
@@ -79,22 +82,16 @@ void Block::Print(string indent) const
     cout<<indent<<"}\n";
 }
 
-void Block::Dump(basic_ostream<char>& fs, string indent, int dest) const
-{
-    fs<<indent<<"\%entry:"<<endl;
-    auto curindent=indent+"\t";
-    items_->Dump(fs,curindent);
-}
-
-void Block::Scan()
+void Block::Dump(basic_ostream<char>& fs, string indent, int dest)
 {
     SymTab_=new SymTab();
     SymTab_->pred_=CurSymTab;
     CurSymTab=SymTab_;
-    items_->Scan();
+    items_->Dump(fs,indent);
+    CurSymTab=SymTab_->pred_;
 }
 
-void BlockItems::Print(string indent) const
+void BlockItems::Print(string indent)
 {
     for (int i=0; i<items_.size(); i++)
     {
@@ -102,7 +99,7 @@ void BlockItems::Print(string indent) const
     }
 }
 
-void BlockItems::Dump(basic_ostream<char>& fs, string indent, int dest) const
+void BlockItems::Dump(basic_ostream<char>& fs, string indent, int dest)
 {
     for (int i=0; i<items_.size(); i++)
     {
@@ -110,27 +107,27 @@ void BlockItems::Dump(basic_ostream<char>& fs, string indent, int dest) const
     }
 }
 
-void BlockItem::Print(string indent) const
+void BlockItem::Print(string indent)
 {
     item_->Print(indent);
 }
 
-void BlockItem::Dump(basic_ostream<char>& fs, string indent, int dest) const
+void BlockItem::Dump(basic_ostream<char>& fs, string indent, int dest)
 {
     item_->Dump(fs,indent);
 }
 
-void Decl::Print(string indent) const
+void Decl::Print(string indent)
 {
     item_->Print(indent);
 }
 
-void Decl::Dump(basic_ostream<char>& fs, string indent, int dest) const
+void Decl::Dump(basic_ostream<char>& fs, string indent, int dest)
 {
     item_->Dump(fs,indent);
 }
 
-void ConstDecl::Print(string indent) const
+void ConstDecl::Print(string indent)
 {
     cout<<indent<<"ConstDecl {\n";
     string curindent=indent+"|\t";
@@ -139,12 +136,12 @@ void ConstDecl::Print(string indent) const
     cout<<indent<<"}\n";
 }
 
-void ConstDecl::Dump(basic_ostream<char>& fs, string indent, int dest) const
+void ConstDecl::Dump(basic_ostream<char>& fs, string indent, int dest)
 {
-    return;
+    item_->Dump(fs,indent);
 }
 
-void VarDecl::Print(string indent) const
+void VarDecl::Print(string indent)
 {
     cout<<indent<<"VarDecl {\n";
     string curindent=indent+"|\t";
@@ -153,12 +150,12 @@ void VarDecl::Print(string indent) const
     cout<<indent<<"}\n";
 }
 
-void VarDecl::Dump(basic_ostream<char>& fs, string indent, int dest) const
+void VarDecl::Dump(basic_ostream<char>& fs, string indent, int dest)
 {
     item_->Dump(fs,indent);
 }
 
-void ConstDefs::Print(string indent) const
+void ConstDefs::Print(string indent)
 {
     for (int i=0; i<defs_.size(); i++)
     {
@@ -166,56 +163,7 @@ void ConstDefs::Print(string indent) const
     }
 }
 
-void ConstDefs::Dump(basic_ostream<char>& fs, string indent, int dest) const
-{
-    return;
-}
-
-void ConstDef::Print(string indent) const
-{
-    cout<<indent<<ident_<<" := "<<initval_->CalcVal()<<endl;
-}
-
-void ConstDef::Dump(basic_ostream<char>& fs, string indent, int dest) const
-{
-    return;
-}
-
-void ConstDef::Scan()
-{
-    initval_->Scan();
-    CurSymTab->insert_const(ident_, initval_->CalcVal());
-}
-
-void ConstInitVal::Print(string indent) const
-{
-    return;
-}
-
-void ConstInitVal::Dump(basic_ostream<char>& fs, string indent, int dest) const
-{
-    return;
-}
-
-void ConstExp::Print(string indent) const
-{
-    return;
-}
-
-void ConstExp::Dump(basic_ostream<char>& fs, string indent, int dest) const
-{
-    return;
-}
-
-void VarDefs::Print(string indent) const
-{
-    for (int i=0; i<defs_.size(); i++)
-    {
-        defs_[i]->Print(indent);
-    }
-}
-
-void VarDefs::Dump(basic_ostream<char>& fs, string indent, int dest) const
+void ConstDefs::Dump(basic_ostream<char>& fs, string indent, int dest)
 {
     for (int i=0; i<defs_.size(); i++)
     {
@@ -223,7 +171,53 @@ void VarDefs::Dump(basic_ostream<char>& fs, string indent, int dest) const
     }
 }
 
-void VarDef::Print(string indent) const
+void ConstDef::Print(string indent)
+{
+    cout<<indent<<ident_<<" := "<<initval_->CalcVal()<<endl;
+}
+
+void ConstDef::Dump(basic_ostream<char>& fs, string indent, int dest)
+{
+    CurSymTab->insert_const(ident_, initval_->CalcVal());
+}
+
+void ConstInitVal::Print(string indent)
+{
+    return;
+}
+
+void ConstInitVal::Dump(basic_ostream<char>& fs, string indent, int dest)
+{
+    return;
+}
+
+void ConstExp::Print(string indent)
+{
+    return;
+}
+
+void ConstExp::Dump(basic_ostream<char>& fs, string indent, int dest)
+{
+    return;
+}
+
+void VarDefs::Print(string indent)
+{
+    for (int i=0; i<defs_.size(); i++)
+    {
+        defs_[i]->Print(indent);
+    }
+}
+
+void VarDefs::Dump(basic_ostream<char>& fs, string indent, int dest)
+{
+    for (int i=0; i<defs_.size(); i++)
+    {
+        defs_[i]->Dump(fs,indent);
+    }
+}
+
+void VarDef::Print(string indent)
 {
     if (cur_derivation_==0)
         cout<<indent<<ident_<<" := \n";
@@ -236,8 +230,9 @@ void VarDef::Print(string indent) const
     }
 }
 
-void VarDef::Dump(basic_ostream<char>& fs, string indent, int dest) const
+void VarDef::Dump(basic_ostream<char>& fs, string indent, int dest)
 {
+    CurSymTab->insert_var(ident_);
     int cur=CurSymTab->find(ident_).val_;
     fs<<indent<<"@VAR_"<<cur<<" = alloc i32 //! w.r.t. symbol "<<ident_<<endl;
     if (cur_derivation_==1)
@@ -256,27 +251,20 @@ void VarDef::Dump(basic_ostream<char>& fs, string indent, int dest) const
     }
 }
 
-void VarDef::Scan()
+void InitVal::Print(string indent)
 {
-    if (cur_derivation_==1)
-        initval_->Scan();
-    CurSymTab->insert_var(ident_);
-}
-
-void InitVal::Print(string indent) const
-{
-    if (isconst_)
+    if (IsConst())
         cout<<indent<<CalcVal()<<endl;
     else
         subexp_->Print(indent);
 }
 
-void InitVal::Dump(basic_ostream<char>& fs, string indent, int dest) const
+void InitVal::Dump(basic_ostream<char>& fs, string indent, int dest)
 {
     subexp_->Dump(fs,indent,dest);
 }
 
-void Stmt::Print(string indent) const
+void Stmt::Print(string indent)
 {
     cout<<indent<<"Stmt {\n";
     string curindent=indent+"|\t";
@@ -294,14 +282,23 @@ void Stmt::Print(string indent) const
         cout<<curindent<<"}\n";
         break;
     
+    case 2: // ';'
+        cout<<curindent<<";\n";
+        break;
+
+    case 3: // Exp ';'
+    case 4: // Block
+        subexp1_->Print(curindent);
+        break;
+
     default:
-        LOG_ERROR("@Stmt:::print: Unrecognized cur_derivation_=%d",cur_derivation_);
+        LOG_ERROR("@Stmt::print: Unrecognized cur_derivation_=%d",cur_derivation_);
         break;
     }
     cout<<indent<<"}\n";
 }
 
-void Stmt::Dump(basic_ostream<char>& fs, string indent, int dest) const
+void Stmt::Dump(basic_ostream<char>& fs, string indent, int dest)
 {
     int tpvar;
     switch (cur_derivation_)
@@ -322,6 +319,18 @@ void Stmt::Dump(basic_ostream<char>& fs, string indent, int dest) const
             fs<<indent<<"store %"<<tpvar<<", @VAR_"<<CurSymTab->find(subexp1_->GetIdent()).val_<<endl;
         }
         break;
+    
+    case 2: // ';'
+        break;
+    
+    case 3: // Exp ';'
+        tpvar=new_tempvar();
+        subexp1_->Dump(fs,indent,tpvar);
+        break;
+    
+    case 4: // Block
+        subexp1_->Dump(fs,indent,dest);
+        break;
 
     default:
         LOG_ERROR("@Stmt::dump: Unrecognized cur_derivation_=%d",cur_derivation_);
@@ -329,26 +338,7 @@ void Stmt::Dump(basic_ostream<char>& fs, string indent, int dest) const
     }
 }
 
-void Stmt::Scan()
-{
-    switch (cur_derivation_)
-    {
-    case 0: // RETURN Exp ';'
-        subexp1_->Scan();
-        break;
-    
-    case 1: // LVal EQ Exp ';'
-        subexp1_->Scan();
-        subexp2_->Scan();
-        break;
-    
-    default:
-        LOG_ERROR("@Stmt:::print: Unrecognized cur_derivation_=%d",cur_derivation_);
-        break;
-    }
-}
-
-void Exp::Print(string indent) const
+void Exp::Print(string indent)
 {
     cout<<indent<<"Exp {\n";
     string curindent=indent+"|\t";
@@ -356,9 +346,9 @@ void Exp::Print(string indent) const
     cout<<indent<<"}\n";
 }
 
-void Exp::Dump(basic_ostream<char>& fs, string indent, int dest) const
+void Exp::Dump(basic_ostream<char>& fs, string indent, int dest)
 {
-    if (isconst_)
+    if (IsConst())
     {
         fs<<indent<<"%"<<dest<<" = add 0, "<<CalcVal()<<endl;
         return;
@@ -366,7 +356,7 @@ void Exp::Dump(basic_ostream<char>& fs, string indent, int dest) const
     subexp_->Dump(fs,indent,dest);
 }
 
-void LOrExp::Print(string indent) const
+void LOrExp::Print(string indent)
 {
     cout<<indent<<"LOrExp {\n";
     string curindent=indent+"|\t";
@@ -389,9 +379,9 @@ void LOrExp::Print(string indent) const
     cout<<indent<<"}\n";
 }
 
-void LOrExp::Dump(basic_ostream<char>& fs, string indent, int dest) const
+void LOrExp::Dump(basic_ostream<char>& fs, string indent, int dest)
 {
-    if (isconst_)
+    if (IsConst())
     {
         fs<<indent<<"%"<<dest<<" = add 0, "<<CalcVal()<<endl;
         return;
@@ -421,7 +411,7 @@ void LOrExp::Dump(basic_ostream<char>& fs, string indent, int dest) const
     }
 }
 
-int LOrExp::CalcVal() const
+int LOrExp::CalcVal()
 {
     switch (cur_derivation_)
     {
@@ -437,7 +427,7 @@ int LOrExp::CalcVal() const
     }
 }
 
-void LAndExp::Print(string indent) const
+void LAndExp::Print(string indent)
 {
     cout<<indent<<"LAndExp {\n";
     string curindent=indent+"|\t";
@@ -460,9 +450,9 @@ void LAndExp::Print(string indent) const
     cout<<indent<<"}\n";
 }
 
-void LAndExp::Dump(basic_ostream<char>& fs, string indent, int dest) const
+void LAndExp::Dump(basic_ostream<char>& fs, string indent, int dest)
 {
-    if (isconst_)
+    if (IsConst())
     {
         fs<<indent<<"%"<<dest<<" = add 0, "<<CalcVal()<<endl;
         return;
@@ -492,7 +482,7 @@ void LAndExp::Dump(basic_ostream<char>& fs, string indent, int dest) const
     }
 }
 
-int LAndExp::CalcVal() const
+int LAndExp::CalcVal()
 {
     switch (cur_derivation_)
     {
@@ -508,7 +498,7 @@ int LAndExp::CalcVal() const
     }
 }
 
-void EqExp::Print(string indent) const
+void EqExp::Print(string indent)
 {
     cout<<indent<<"EqExp {\n";
     string curindent=indent+"|\t";
@@ -537,9 +527,9 @@ void EqExp::Print(string indent) const
     cout<<indent<<"}\n";
 }
 
-void EqExp::Dump(basic_ostream<char>& fs, string indent, int dest) const
+void EqExp::Dump(basic_ostream<char>& fs, string indent, int dest)
 {
-    if (isconst_)
+    if (IsConst())
     {
         fs<<indent<<"%"<<dest<<" = add 0, "<<CalcVal()<<endl;
         return;
@@ -573,7 +563,7 @@ void EqExp::Dump(basic_ostream<char>& fs, string indent, int dest) const
     }
 }
 
-int EqExp::CalcVal() const
+int EqExp::CalcVal()
 {
     switch (cur_derivation_)
     {
@@ -592,7 +582,7 @@ int EqExp::CalcVal() const
     }
 }
 
-void RelExp::Print(string indent) const
+void RelExp::Print(string indent)
 {
     cout<<indent<<"RelExp {\n";
     string curindent=indent+"|\t";
@@ -633,9 +623,9 @@ void RelExp::Print(string indent) const
     cout<<indent<<"}\n";
 }
 
-void RelExp::Dump(basic_ostream<char>& fs, string indent, int dest) const
+void RelExp::Dump(basic_ostream<char>& fs, string indent, int dest)
 {
-    if (isconst_)
+    if (IsConst())
     {
         fs<<indent<<"%"<<dest<<" = add 0, "<<CalcVal()<<endl;
         return;
@@ -685,7 +675,7 @@ void RelExp::Dump(basic_ostream<char>& fs, string indent, int dest) const
     }
 }
 
-int RelExp::CalcVal() const
+int RelExp::CalcVal()
 {
     switch (cur_derivation_)
     {
@@ -710,7 +700,7 @@ int RelExp::CalcVal() const
     }
 }
 
-void AddExp::Print(string indent) const
+void AddExp::Print(string indent)
 {
     cout<<indent<<"AddExp {\n";
     string curindent=indent+"|\t";
@@ -739,9 +729,9 @@ void AddExp::Print(string indent) const
     cout<<indent<<"}\n";
 }
 
-void AddExp::Dump(basic_ostream<char>& fs, string indent, int dest) const
+void AddExp::Dump(basic_ostream<char>& fs, string indent, int dest)
 {
-    if (isconst_)
+    if (IsConst())
     {
         fs<<indent<<"%"<<dest<<" = add 0, "<<CalcVal()<<endl;
         return;
@@ -775,7 +765,7 @@ void AddExp::Dump(basic_ostream<char>& fs, string indent, int dest) const
     }
 }
 
-int AddExp::CalcVal() const
+int AddExp::CalcVal()
 {
     switch (cur_derivation_)
     {
@@ -794,7 +784,7 @@ int AddExp::CalcVal() const
     }
 }
 
-void MulExp::Print(string indent) const
+void MulExp::Print(string indent)
 {
     cout<<indent<<"MulExp {\n";
     string curindent=indent+"|\t";
@@ -829,9 +819,9 @@ void MulExp::Print(string indent) const
     cout<<indent<<"}\n";
 }
 
-void MulExp::Dump(basic_ostream<char>& fs, string indent, int dest) const
+void MulExp::Dump(basic_ostream<char>& fs, string indent, int dest)
 {
-    if (isconst_)
+    if (IsConst())
     {
         fs<<indent<<"%"<<dest<<" = add 0, "<<CalcVal()<<endl;
         return;
@@ -873,7 +863,7 @@ void MulExp::Dump(basic_ostream<char>& fs, string indent, int dest) const
     }
 }
 
-int MulExp::CalcVal() const
+int MulExp::CalcVal()
 {
     switch (cur_derivation_)
     {
@@ -895,7 +885,7 @@ int MulExp::CalcVal() const
     }
 }
 
-void UnaryExp::Print(string indent) const
+void UnaryExp::Print(string indent)
 {
     cout<<indent<<"UnaryExp {\n";
     string curindent=indent+"|\t";
@@ -924,9 +914,9 @@ void UnaryExp::Print(string indent) const
     cout<<indent<<"}\n";
 }
 
-void UnaryExp::Dump(basic_ostream<char>& fs, string indent, int dest) const
+void UnaryExp::Dump(basic_ostream<char>& fs, string indent, int dest)
 {
-    if (isconst_)
+    if (IsConst())
     {
         fs<<indent<<"%"<<dest<<" = add 0, "<<CalcVal()<<endl;
         return;
@@ -960,7 +950,7 @@ void UnaryExp::Dump(basic_ostream<char>& fs, string indent, int dest) const
     }
 }
 
-int UnaryExp::CalcVal() const
+int UnaryExp::CalcVal()
 {
     switch (cur_derivation_)
     {
@@ -982,7 +972,7 @@ int UnaryExp::CalcVal() const
     }
 }
 
-void PrimaryExp::Print(string indent) const
+void PrimaryExp::Print(string indent)
 {
     cout<<indent<<"PrimaryExp: {\n";
     string curindent=indent+"|\t";
@@ -990,9 +980,9 @@ void PrimaryExp::Print(string indent) const
     cout<<indent<<"}\n";
 }
 
-void PrimaryExp::Dump(basic_ostream<char>& fs, string indent, int dest) const
+void PrimaryExp::Dump(basic_ostream<char>& fs, string indent, int dest)
 {
-    if (isconst_)
+    if (IsConst())
     {
         fs<<indent<<"%"<<dest<<" = add 0, "<<CalcVal()<<endl;
         return;
@@ -1000,32 +990,27 @@ void PrimaryExp::Dump(basic_ostream<char>& fs, string indent, int dest) const
     subexp_->Dump(fs,indent,dest);
 }
 
-int PrimaryExp::CalcVal() const
+int PrimaryExp::CalcVal()
 {
     return subexp_->CalcVal();
 }
 
-void LVal::Print(string indent) const
+void LVal::Print(string indent)
 {
     cout<<indent<<ident_<<endl;
 }
 
-void LVal::Dump(basic_ostream<char>& fs, string indent, int dest) const
+void LVal::Dump(basic_ostream<char>& fs, string indent, int dest)
 {
     fs<<indent<<"%"<<dest<<" = load @VAR_"<<CurSymTab->find(ident_).val_<<endl;
 }
 
-void LVal::Scan()
-{
-    isconst_=CurSymTab->is_const(ident_);
-}
-
-void Number::Print(string indent) const
+void Number::Print(string indent)
 {
     cout<<indent<<int_const_<<endl;
 }
 
-void Number::Dump(basic_ostream<char>& fs, string indent, int dest) const
+void Number::Dump(basic_ostream<char>& fs, string indent, int dest)
 {
     fs<<indent<<"%"<<dest<<" = add 0, "<<int_const_<<endl;
 }

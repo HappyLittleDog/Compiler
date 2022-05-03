@@ -63,10 +63,9 @@ Block
     ;
 
 BlockItems
-    :   BlockItem
+    :
         {
             auto cur=new BlockItems();
-            cur->items_.push_back(unique_ptr<BaseAst>($1));
             $$=cur;
         }
     |   BlockItems BlockItem
@@ -233,8 +232,27 @@ Stmt
             auto cur=new Stmt();
             cur->cur_derivation_=1;
             cur->subexp1_=unique_ptr<BaseAst>($1);
-            // LOG_DEBUG("cur_var: %s @ %p", cur->subexp1_->GetIdent().c_str(), (void*)cur);
             cur->subexp2_=unique_ptr<BaseAst>($3);
+            $$=cur;
+        }
+    |   ';'
+        {
+            auto cur=new Stmt();
+            cur->cur_derivation_=2;
+            $$=cur;
+        }
+    |   Exp ';'
+        {
+            auto cur=new Stmt();
+            cur->cur_derivation_=3;
+            cur->subexp1_=unique_ptr<BaseAst>($1);
+            $$=cur;
+        }
+    |   Block
+        {
+            auto cur=new Stmt();
+            cur->cur_derivation_=4;
+            cur->subexp1_=unique_ptr<BaseAst>($1);
             $$=cur;
         }
     ;

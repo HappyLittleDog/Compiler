@@ -65,7 +65,7 @@ public:
             }
             cur=cur->pred_;
         }
-        LOG_ERROR("@ConstSymTab::get_val: %s not found.",symbol.c_str());
+        LOG_ERROR("@SymTab::find: %s not found.",symbol.c_str());
         return SymTabEntry(0,0);
     }
 
@@ -81,7 +81,7 @@ public:
             }
             cur=cur->pred_;
         }
-        LOG_ERROR("@ConstSymTab::is_const: %s not found.",symbol.c_str());
+        LOG_ERROR("@SymTab::is_const: %s not found.",symbol.c_str());
         return false;
     }
 };
@@ -91,21 +91,19 @@ class BaseAst
 {
 public:
     virtual ~BaseAst() = default;
-    virtual void Print(string indent="") const = 0;
-    virtual void Scan() = 0; // Scan the AST to build the symtab.
-    virtual void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) const = 0;
-    virtual bool IsConst() const {LOG_ERROR("@IsConst: unexpected function call!"); return false;} // used for expression ONLY!
-    virtual int CalcVal() const {LOG_ERROR("@CalcVal: Unexpected function call!"); return 0;} // used for expression ONLY!
-    virtual string GetIdent() const {LOG_ERROR("@GetIdent: Unexpected function call!"); return "";} // used for LVal ONLY!
+    virtual void Print(string indent="") = 0;
+    virtual void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) = 0;
+    virtual int IsConst() {LOG_ERROR("@IsConst: unexpected function call!"); return -1;} // used for expression ONLY!
+    virtual int CalcVal() {LOG_ERROR("@CalcVal: Unexpected function call!"); return 0;} // used for expression ONLY!
+    virtual string GetIdent() {LOG_ERROR("@GetIdent: Unexpected function call!"); return "";} // used for LVal ONLY!
 };
 
 class CompUnit : public BaseAst
 {
 public:
     unique_ptr<BaseAst> funcdef_;
-    void Print(string indent="") const override;
-    void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) const override;
-    void Scan() override; // TODO
+    void Print(string indent="") override;
+    void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) override;
 };
 
 class FuncDef : public BaseAst
@@ -114,18 +112,16 @@ public:
     unique_ptr<BaseAst> functype_;
     string ident_;
     unique_ptr<BaseAst> block_;
-    void Print(string indent="") const override;
-    void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) const override;
-    void Scan() override {block_->Scan();}
+    void Print(string indent="") override;
+    void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) override;
 };
 
 class FuncType : public BaseAst
 {
 public:
     DataType rettype_;
-    void Print(string indent="") const override;
-    void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) const override;
-    void Scan() override {return;}
+    void Print(string indent="") override;
+    void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) override;
 };
 
 class Block : public BaseAst
@@ -133,22 +129,16 @@ class Block : public BaseAst
 public:
     unique_ptr<BaseAst> items_;
     SymTab* SymTab_;
-    void Print(string indent="") const override;
-    void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) const override;
-    void Scan() override; // TODO
+    void Print(string indent="") override;
+    void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) override;
 };
 
 class BlockItems : public BaseAst
 {
 public:
     vector<unique_ptr<BaseAst> > items_;
-    void Print(string indent="") const override;
-    void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) const override;
-    void Scan() override
-    {
-        for (int i=0;i<items_.size();i++)
-            items_[i]->Scan();
-    }
+    void Print(string indent="") override;
+    void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) override;
 };
 
 class BlockItem : public BaseAst
@@ -156,49 +146,40 @@ class BlockItem : public BaseAst
 public:
     int cur_derivation_;
     unique_ptr<BaseAst> item_;
-    void Print(string indent="") const override;
-    void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) const override;
-    void Scan() override {item_->Scan();}
+    void Print(string indent="") override;
+    void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) override;
 };
 
 class Decl : public BaseAst
 {
 public:
     unique_ptr<BaseAst> item_;
-    void Print(string indent="") const override;
-    void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) const override;
-    void Scan() override {item_->Scan();}
+    void Print(string indent="") override;
+    void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) override;
 };
 
 class ConstDecl : public BaseAst
 {
 public:
     unique_ptr<BaseAst> item_;
-    void Print(string indent="") const override;
-    void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) const override;
-    void Scan() override {item_->Scan();}
+    void Print(string indent="") override;
+    void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) override;
 };
 
 class VarDecl : public BaseAst
 {
 public:
     unique_ptr<BaseAst> item_;
-    void Print(string indent="") const override;
-    void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) const override;
-    void Scan() override {item_->Scan();}
+    void Print(string indent="") override;
+    void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) override;
 };
 
 class ConstDefs : public BaseAst
 {
 public:
     vector<unique_ptr<BaseAst> > defs_;
-    void Print(string indent="") const override;
-    void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) const override;
-    void Scan() override
-    {
-        for (int i=0;i<defs_.size();i++)
-            defs_[i]->Scan();
-    }
+    void Print(string indent="") override;
+    void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) override;
 };
 
 class ConstDef : public BaseAst
@@ -206,44 +187,36 @@ class ConstDef : public BaseAst
 public:
     string ident_;
     unique_ptr<BaseAst> initval_;
-    void Print(string indent="") const override;
-    void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) const override;
-    void Scan() override; // TODO
+    void Print(string indent="") override;
+    void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) override;
 };
 
 class ConstInitVal : public BaseAst
 {
 public:
     unique_ptr<BaseAst> subexp_;
-    void Print(string indent="") const override;
-    void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) const override;
-    bool IsConst() const override {return true;}
-    int CalcVal() const override {return subexp_->CalcVal();}
-    void Scan() override {subexp_->Scan();}
+    void Print(string indent="") override;
+    void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) override;
+    int IsConst() override {return 1;}
+    int CalcVal() override {return subexp_->CalcVal();}
 };
 
 class ConstExp : public BaseAst
 {
 public:
     unique_ptr<BaseAst> subexp_;
-    void Print(string indent="") const override;
-    void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) const override;
-    bool IsConst() const override {return true;}
-    int CalcVal() const override {return subexp_->CalcVal();}
-    void Scan() override {subexp_->Scan();}
+    void Print(string indent="") override;
+    void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) override;
+    int IsConst() override {return 1;}
+    int CalcVal() override {return subexp_->CalcVal();}
 };
 
 class VarDefs : public BaseAst
 {
 public:
     vector<unique_ptr<BaseAst> > defs_;
-    void Print(string indent="") const override;
-    void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) const override;
-    void Scan() override
-    {
-        for (int i=0;i<defs_.size();i++)
-            defs_[i]->Scan();
-    }
+    void Print(string indent="") override;
+    void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) override;
 };
 
 class VarDef : public BaseAst
@@ -252,25 +225,24 @@ public:
     int cur_derivation_;
     string ident_;
     unique_ptr<BaseAst> initval_;
-    void Print(string indent="") const override;
-    void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) const override;
-    void Scan() override; // TODO
+    void Print(string indent="") override;
+    void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) override;
 };
 
 class InitVal : public BaseAst
 {
 public:
-    bool isconst_;
+    int isconst_=-1;
     unique_ptr<BaseAst> subexp_;
-    void Print(string indent="") const override;
-    void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) const override;
-    bool IsConst() const override {return isconst_;}
-    int CalcVal() const override {return subexp_->CalcVal();}
-    void Scan() override 
+    void Print(string indent="") override;
+    void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) override;
+    int IsConst() override 
     {
-        subexp_->Scan();
-        isconst_=subexp_->IsConst();
+        if (isconst_==-1)
+            isconst_=subexp_->IsConst();
+        return isconst_;
     }
+    int CalcVal() override {return subexp_->CalcVal();}
 };
 
 class Stmt : public BaseAst
@@ -279,286 +251,270 @@ public:
     int cur_derivation_;
     unique_ptr<BaseAst> subexp1_;
     unique_ptr<BaseAst> subexp2_;
-    void Print(string indent="") const override;
-    void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) const override;
-    void Scan() override; // TODO
+    void Print(string indent="") override;
+    void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) override;
 };
 
 class Exp : public BaseAst
 {
 public:
-    bool isconst_;
+    int isconst_=-1;
     unique_ptr<BaseAst> subexp_;
-    void Print(string indent="") const override;
-    void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) const override;
-    bool IsConst() const override {return isconst_;}
-    int CalcVal() const override {return subexp_->CalcVal();}
-    void Scan() override 
+    void Print(string indent="") override;
+    void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) override;
+    int IsConst() override 
     {
-        subexp_->Scan();
-        isconst_=subexp_->IsConst();
+        if (isconst_==-1)
+            isconst_=subexp_->IsConst();
+        return isconst_;
     }
+    int CalcVal() override {return subexp_->CalcVal();}
 };
 
 class LOrExp : public BaseAst
 {
 public:
-    bool isconst_;
+    int isconst_=-1;
     int cur_derivation_;
     unique_ptr<BaseAst> subexp1_;
     unique_ptr<BaseAst> subexp2_;
-    void Print(string indent="") const override;
-    void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) const override;
-    bool IsConst() const override {return isconst_;}
-    int CalcVal() const override;
-    void Scan() override
+    void Print(string indent="") override;
+    void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) override;
+    int IsConst() override 
     {
-        switch (cur_derivation_)
+        if (isconst_==-1)
         {
-        case 0:
-            subexp1_->Scan();
-            isconst_=subexp1_->IsConst();
-            break;
-        
-        case 1:
-            subexp1_->Scan();
-            subexp2_->Scan();
-            isconst_=subexp1_->IsConst() && subexp2_->IsConst();
-            break;
-        
-        default:
-            LOG_ERROR("@**exp::scan: unexpected cur_derivation=%d",cur_derivation_);
-            break;
+            switch (cur_derivation_)
+            {
+            case 0:
+                isconst_=subexp1_->IsConst();
+                break;
+            
+            case 1:
+                isconst_=subexp1_->IsConst() && subexp2_->IsConst();
+                break;
+            }
         }
+        return isconst_;
     }
+    int CalcVal() override;
 };
 
 class LAndExp : public BaseAst
 {
 public:
-    bool isconst_;
+    int isconst_=-1;
     int cur_derivation_;
     unique_ptr<BaseAst> subexp1_;
     unique_ptr<BaseAst> subexp2_;
-    void Print(string indent="") const override;
-    void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) const override;
-    bool IsConst() const override {return isconst_;}
-    int CalcVal() const override;
-    void Scan() override
+    void Print(string indent="") override;
+    void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) override;
+    int IsConst() override 
     {
-        switch (cur_derivation_)
+        if (isconst_==-1)
         {
-        case 0:
-            subexp1_->Scan();
-            isconst_=subexp1_->IsConst();
-            break;
-        
-        case 1:
-            subexp1_->Scan();
-            subexp2_->Scan();
-            isconst_=subexp1_->IsConst() && subexp2_->IsConst();
-            break;
-        
-        default:
-            LOG_ERROR("@**exp::scan: unexpected cur_derivation=%d",cur_derivation_);
-            break;
+            switch (cur_derivation_)
+            {
+            case 0:
+                isconst_=subexp1_->IsConst();
+                break;
+            
+            case 1:
+                isconst_=subexp1_->IsConst() && subexp2_->IsConst();
+                break;
+            }
         }
+        return isconst_;
     }
+    int CalcVal() override;
 };
 
 class EqExp : public BaseAst
 {
 public:
-    bool isconst_;
+    int isconst_=-1;
     int cur_derivation_;
     unique_ptr<BaseAst> subexp1_;
     unique_ptr<BaseAst> subexp2_;
-    void Print(string indent="") const override;
-    void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) const override;
-    bool IsConst() const override {return isconst_;}
-    int CalcVal() const override;
-    void Scan() override
+    void Print(string indent="") override;
+    void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) override;
+    int IsConst() override 
     {
-        switch (cur_derivation_)
+        if (isconst_==-1)
         {
-        case 0:
-            subexp1_->Scan();
-            isconst_=subexp1_->IsConst();
-            break;
-        
-        case 1:
-        case 2:
-            subexp1_->Scan();
-            subexp2_->Scan();
-            isconst_=subexp1_->IsConst() && subexp2_->IsConst();
-            break;
-        
-        default:
-            LOG_ERROR("@**exp::scan: unexpected cur_derivation=%d",cur_derivation_);
-            break;
+            switch (cur_derivation_)
+            {
+            case 0:
+                isconst_=subexp1_->IsConst();
+                break;
+            
+            case 1:
+            case 2:
+                isconst_=subexp1_->IsConst() && subexp2_->IsConst();
+                break;
+            }
         }
+        return isconst_;
     }
+    int CalcVal() override;
 };
 
 class RelExp : public BaseAst
 {
 public:
-    bool isconst_;
+    int isconst_=-1;
     int cur_derivation_;
     unique_ptr<BaseAst> subexp1_;
     unique_ptr<BaseAst> subexp2_;
-    void Print(string indent="") const override;
-    void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) const override;
-    bool IsConst() const override {return isconst_;}
-    int CalcVal() const override;
-    void Scan() override
+    void Print(string indent="") override;
+    void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) override;
+    int IsConst() override 
     {
-        switch (cur_derivation_)
+        if (isconst_==-1)
         {
-        case 0:
-            subexp1_->Scan();
-            isconst_=subexp1_->IsConst();
-            break;
-        
-        case 1:
-        case 2:
-        case 3:
-        case 4:
-            subexp1_->Scan();
-            subexp2_->Scan();
-            isconst_=subexp1_->IsConst() && subexp2_->IsConst();
-            break;
-        
-        default:
-            LOG_ERROR("@**exp::scan: unexpected cur_derivation=%d",cur_derivation_);
-            break;
+            switch (cur_derivation_)
+            {
+            case 0:
+                isconst_=subexp1_->IsConst();
+                break;
+            
+            case 1:
+            case 2:
+            case 3:
+            case 4:
+                isconst_=subexp1_->IsConst() && subexp2_->IsConst();
+                break;
+            }
         }
+        return isconst_;
     }
+    int CalcVal() override;
 };
 
 class AddExp : public BaseAst
 {
 public:
-    bool isconst_;
+    int isconst_=-1;
     int cur_derivation_;
     unique_ptr<BaseAst> subexp1_;
     unique_ptr<BaseAst> subexp2_;
-    void Print(string indent="") const override;
-    void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) const override;
-    bool IsConst() const override {return isconst_;}
-    int CalcVal() const override;
-    void Scan() override
+    void Print(string indent="") override;
+    void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) override;
+    int IsConst() override 
     {
-        switch (cur_derivation_)
+        if (isconst_==-1)
         {
-        case 0:
-            subexp1_->Scan();
-            isconst_=subexp1_->IsConst();
-            break;
-        
-        case 1:
-        case 2:
-            subexp1_->Scan();
-            subexp2_->Scan();
-            isconst_=subexp1_->IsConst() && subexp2_->IsConst();
-            break;
-        
-        default:
-            LOG_ERROR("@**exp::scan: unexpected cur_derivation=%d",cur_derivation_);
-            break;
+            switch (cur_derivation_)
+            {
+            case 0:
+                isconst_=subexp1_->IsConst();
+                break;
+            
+            case 1:
+            case 2:
+                isconst_=subexp1_->IsConst() && subexp2_->IsConst();
+                break;
+            }
         }
+        return isconst_;
     }
+    int CalcVal() override;
 };
 
 class MulExp : public BaseAst
 {
 public:
-    bool isconst_;
+    int isconst_=-1;
     int cur_derivation_;
     unique_ptr<BaseAst> subexp1_;
     unique_ptr<BaseAst> subexp2_;
-    void Print(string indent="") const override;
-    void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) const override;
-    bool IsConst() const override {return isconst_;}
-    int CalcVal() const override;
-    void Scan() override
+    void Print(string indent="") override;
+    void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) override;
+    int IsConst() override 
     {
-        switch (cur_derivation_)
+        if (isconst_==-1)
         {
-        case 0:
-            subexp1_->Scan();
-            isconst_=subexp1_->IsConst();
-            break;
-        
-        case 1:
-        case 2:
-        case 3:
-            subexp1_->Scan();
-            subexp2_->Scan();
-            isconst_=subexp1_->IsConst() && subexp2_->IsConst();
-            break;
-        
-        default:
-            LOG_ERROR("@**exp::scan: unexpected cur_derivation=%d",cur_derivation_);
-            break;
+            switch (cur_derivation_)
+            {
+            case 0:
+                isconst_=subexp1_->IsConst();
+                break;
+            
+            case 1:
+            case 2:
+            case 3:
+                isconst_=subexp1_->IsConst() && subexp2_->IsConst();
+                break;
+            }
         }
+        return isconst_;
     }
+    int CalcVal() override;
 };
 
 class UnaryExp : public BaseAst
 {
 public:
-    bool isconst_;
+    int isconst_=-1;
     int cur_derivation_;
     unique_ptr<BaseAst> subexp_;
-    void Print(string indent="") const override;
-    void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) const override;
-    bool IsConst() const override {return isconst_;}
-    int CalcVal() const override;
-    void Scan() override
+    void Print(string indent="") override;
+    void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) override;
+    int IsConst() override 
     {
-        subexp_->Scan();
-        isconst_=subexp_->IsConst();
+        if (isconst_==-1)
+        {
+            isconst_=subexp_->IsConst();
+        }
+        return isconst_;
     }
+    int CalcVal() override;
 };
 
 class PrimaryExp : public BaseAst
 {
 public:
-    bool isconst_;
+    int isconst_=-1;
     int cur_derivation_;
     unique_ptr<BaseAst> subexp_;
-    void Print(string indent="") const override;
-    void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) const override;
-    bool IsConst() const override {return isconst_;}
-    int CalcVal() const override;
-    void Scan() override
+    void Print(string indent="") override;
+    void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) override;
+    int IsConst() override 
     {
-        subexp_->Scan();
-        isconst_=subexp_->IsConst();
+        if (isconst_==-1)
+        {
+            isconst_=subexp_->IsConst();
+        }
+        return isconst_;
     }
+    int CalcVal() override;
 };
 
 class LVal : public BaseAst
 {
 public:
     string ident_;
-    bool isconst_;
-    void Print(string indent="") const override;
-    void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) const override;
-    bool IsConst() const override {return isconst_;}
-    int CalcVal() const override {return CurSymTab->find(ident_).val_;}
-    string GetIdent() const override {return ident_;}
-    void Scan() override; // TODO only look up in the symtab. do NOT insert!
+    int isconst_=-1;
+    void Print(string indent="") override;
+    void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) override;
+    int IsConst() override 
+    {
+        if (isconst_==-1)
+        {
+            isconst_=CurSymTab->is_const(ident_);
+        }
+        return isconst_;
+    }
+    int CalcVal() override {return CurSymTab->find(ident_).val_;}
+    string GetIdent() override {return ident_;}
 };
 
 class Number : public BaseAst
 {
 public:
     string int_const_;
-    void Print(string indent="") const override;
-    void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) const override;
-    bool IsConst() const override {return true;}
-    int CalcVal() const override {return stoi(int_const_);};
-    void Scan() override {return;}
+    void Print(string indent="") override;
+    void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) override;
+    int IsConst() override {return 1;}
+    int CalcVal() override {return stoi(int_const_);};
 };
