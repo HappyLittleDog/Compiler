@@ -1,8 +1,7 @@
 #include "include/ast.hpp"
 using namespace std;
 
-ConstSymTab CurConstSymTab;
-VarSymTab CurVarSymTab;
+SymTab* CurSymTab = NULL;
 int temp_var_counter=0;
 int new_tempvar()
 {
@@ -28,6 +27,11 @@ void CompUnit::Print(string indent) const
 void CompUnit::Dump(basic_ostream<char>& fs, string indent, int dest) const
 {
     funcdef_->Dump(fs,indent);
+}
+
+void CompUnit::Scan()
+{
+    funcdef_->Scan();
 }
 
 void FuncDef::Print(string indent) const
@@ -80,6 +84,14 @@ void Block::Dump(basic_ostream<char>& fs, string indent, int dest) const
     fs<<indent<<"\%entry:"<<endl;
     auto curindent=indent+"\t";
     items_->Dump(fs,curindent);
+}
+
+void Block::Scan()
+{
+    SymTab_=new SymTab();
+    SymTab_->pred_=CurSymTab;
+    CurSymTab=SymTab_;
+    items_->Scan();
 }
 
 void BlockItems::Print(string indent) const
@@ -169,6 +181,12 @@ void ConstDef::Dump(basic_ostream<char>& fs, string indent, int dest) const
     return;
 }
 
+void ConstDef::Scan()
+{
+    initval_->Scan();
+    CurSymTab->insert_const(ident_, initval_->CalcVal());
+}
+
 void ConstInitVal::Print(string indent) const
 {
     return;
@@ -220,7 +238,7 @@ void VarDef::Print(string indent) const
 
 void VarDef::Dump(basic_ostream<char>& fs, string indent, int dest) const
 {
-    int cur=CurVarSymTab.get_pos(ident_);
+    int cur=CurSymTab->find(ident_).val_;
     fs<<indent<<"@VAR_"<<cur<<" = alloc i32 //! w.r.t. symbol "<<ident_<<endl;
     if (cur_derivation_==1)
     {
@@ -236,6 +254,13 @@ void VarDef::Dump(basic_ostream<char>& fs, string indent, int dest) const
             fs<<indent<<"store %"<<temp<<", @VAR_"<<cur<<endl;
         }
     }
+}
+
+void VarDef::Scan()
+{
+    if (cur_derivation_==1)
+        initval_->Scan();
+    CurSymTab->insert_var(ident_);
 }
 
 void InitVal::Print(string indent) const
@@ -289,17 +314,36 @@ void Stmt::Dump(basic_ostream<char>& fs, string indent, int dest) const
     
     case 1: // LVal EQ Exp ';'
         if (subexp2_->IsConst())
-            fs<<indent<<"store "<<subexp2_->CalcVal()<<", @VAR_"<<CurVarSymTab.get_pos(subexp1_->GetIdent())<<endl;
+            fs<<indent<<"store "<<subexp2_->CalcVal()<<", @VAR_"<<CurSymTab->find(subexp1_->GetIdent()).val_<<endl;
         else
         {
             tpvar=new_tempvar();
             subexp2_->Dump(fs,indent,tpvar);
-            fs<<indent<<"store %"<<tpvar<<", @VAR_"<<CurVarSymTab.get_pos(subexp1_->GetIdent())<<endl;
+            fs<<indent<<"store %"<<tpvar<<", @VAR_"<<CurSymTab->find(subexp1_->GetIdent()).val_<<endl;
         }
         break;
 
     default:
         LOG_ERROR("@Stmt::dump: Unrecognized cur_derivation_=%d",cur_derivation_);
+        break;
+    }
+}
+
+void Stmt::Scan()
+{
+    switch (cur_derivation_)
+    {
+    case 0: // RETURN Exp ';'
+        subexp1_->Scan();
+        break;
+    
+    case 1: // LVal EQ Exp ';'
+        subexp1_->Scan();
+        subexp2_->Scan();
+        break;
+    
+    default:
+        LOG_ERROR("@Stmt:::print: Unrecognized cur_derivation_=%d",cur_derivation_);
         break;
     }
 }
@@ -968,7 +1012,12 @@ void LVal::Print(string indent) const
 
 void LVal::Dump(basic_ostream<char>& fs, string indent, int dest) const
 {
-    fs<<indent<<"%"<<dest<<" = load @VAR_"<<CurVarSymTab.get_pos(ident_)<<endl;
+    fs<<indent<<"%"<<dest<<" = load @VAR_"<<CurSymTab->find(ident_).val_<<endl;
+}
+
+void LVal::Scan()
+{
+    isconst_=CurSymTab->is_const(ident_);
 }
 
 void Number::Print(string indent) const

@@ -105,7 +105,7 @@ clean:
 
 # 0: koopa
 # 1: riscv
-TESTMODE := 1
+TESTMODE := 0
 TESTFILENAME := var
 TESTFLAG :=
 TESTOUTEXT :=
