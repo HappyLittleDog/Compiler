@@ -522,7 +522,7 @@ void LOrExp::Dump(basic_ostream<char>& fs, string indent, int dest)
         fs<<indent<<"%"<<dest<<" = add 0, "<<CalcVal()<<endl;
         return;
     }
-    int lhs, rhs, tpl, tpr;
+    int lhs, rhs, tpl, tpr, entry2, entry3, tpalloc, tpdest;
     switch (cur_derivation_)
     {
     case 0: // LAndExp
@@ -530,15 +530,29 @@ void LOrExp::Dump(basic_ostream<char>& fs, string indent, int dest)
         break;
 
     case 1: // LOrExp OR LAndExp
+        tpalloc=new_tempvar();
         lhs=new_tempvar();
-        rhs=new_tempvar();
-        subexp1_->Dump(fs,indent,lhs);
-        subexp2_->Dump(fs,indent,rhs);
         tpl=new_tempvar();
-        tpr=new_tempvar();
+        entry2=new_entry();
+        entry3=new_entry();
+        fs<<indent<<"\%ALC_"<<tpalloc<<" = alloc i32 //! used for or exp"<<endl;
+        subexp1_->Dump(fs,indent,lhs);
         fs<<indent<<"%"<<tpl<<" = ne %"<<lhs<<", 0"<<endl;
+        fs<<indent<<"store %"<<tpl<<", \%ALC_"<<tpalloc<<endl;
+        fs<<indent<<"br %"<<tpl<<", \%endor_"<<entry3<<", \%or_"<<entry2<<endl;
+
+        tpdest=new_tempvar();
+        rhs=new_tempvar();
+        tpr=new_tempvar();
+        fs<<endl<<"\%or_"<<entry2<<":"<<endl;
+        subexp2_->Dump(fs,indent,rhs);
         fs<<indent<<"%"<<tpr<<" = ne %"<<rhs<<", 0"<<endl;
-        fs<<indent<<"%"<<dest<<" = or %"<<tpl<<", %"<<tpr<<endl;
+        fs<<indent<<"%"<<tpdest<<" = or %"<<tpl<<", %"<<tpr<<endl;
+        fs<<indent<<"store %"<<tpdest<<", \%ALC_"<<tpalloc<<endl;
+        fs<<indent<<"jump \%endor_"<<entry3<<endl;
+
+        fs<<endl<<"\%endor_"<<entry3<<":"<<endl;
+        fs<<indent<<"%"<<dest<<" = load \%ALC_"<<tpalloc<<endl;
         break;
     
     default:
@@ -593,7 +607,7 @@ void LAndExp::Dump(basic_ostream<char>& fs, string indent, int dest)
         fs<<indent<<"%"<<dest<<" = add 0, "<<CalcVal()<<endl;
         return;
     }
-    int lhs, rhs, tpl, tpr;
+    int lhs, rhs, tpl, tpr, entry2, entry3, tpalloc, tpdest;
     switch (cur_derivation_)
     {
     case 0: // EqExp
@@ -601,15 +615,29 @@ void LAndExp::Dump(basic_ostream<char>& fs, string indent, int dest)
         break;
 
     case 1: // LAndExp AND EqExp
+        tpalloc=new_tempvar();
         lhs=new_tempvar();
-        rhs=new_tempvar();
-        subexp1_->Dump(fs,indent,lhs);
-        subexp2_->Dump(fs,indent,rhs);
         tpl=new_tempvar();
-        tpr=new_tempvar();
+        entry2=new_entry();
+        entry3=new_entry();
+        fs<<indent<<"\%ALC_"<<tpalloc<<" = alloc i32 //! used for and exp"<<endl;
+        subexp1_->Dump(fs,indent,lhs);
         fs<<indent<<"%"<<tpl<<" = ne %"<<lhs<<", 0"<<endl;
+        fs<<indent<<"store %"<<tpl<<", \%ALC_"<<tpalloc<<endl;
+        fs<<indent<<"br %"<<tpl<<", \%and_"<<entry2<<", \%endand_"<<entry3<<endl;
+
+        tpdest=new_tempvar();
+        rhs=new_tempvar();
+        tpr=new_tempvar();
+        fs<<endl<<"\%and_"<<entry2<<":"<<endl;
+        subexp2_->Dump(fs,indent,rhs);
         fs<<indent<<"%"<<tpr<<" = ne %"<<rhs<<", 0"<<endl;
-        fs<<indent<<"%"<<dest<<" = and %"<<tpl<<", %"<<tpr<<endl;
+        fs<<indent<<"%"<<tpdest<<" = and %"<<tpl<<", %"<<tpr<<endl;
+        fs<<indent<<"store %"<<tpdest<<", \%ALC_"<<tpalloc<<endl;
+        fs<<indent<<"jump \%endand_"<<entry3<<endl;
+
+        fs<<endl<<"\%endand_"<<entry3<<":"<<endl;
+        fs<<indent<<"%"<<dest<<" = load \%ALC_"<<tpalloc<<endl;
         break;
     
     default:
