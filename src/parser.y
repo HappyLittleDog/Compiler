@@ -21,10 +21,10 @@ void yyerror(std::unique_ptr<BaseAst> &ast, const char *s);
     std::string* str_val;
     BaseAst* ast_val;
 }
-%token INT RETURN PLUS MINUS MULT DIV MOD EQQ NEQ LT GT LEQ GEQ NOT AND OR EQ CONST
+%token INT RETURN PLUS MINUS MULT DIV MOD EQQ NEQ LT GT LEQ GEQ NOT AND OR EQ CONST IF ELSE
 %token <str_val> IDENT
 %token <int_val> INT_CONST
-%type <ast_val> FuncDef FuncType Block Stmt Exp PrimaryExp UnaryExp AddExp MulExp RelExp EqExp LAndExp LOrExp Number Decl ConstDecl BType ConstDefs ConstDef ConstInitVal BlockItems BlockItem LVal ConstExp VarDecl VarDefs VarDef InitVal
+%type <ast_val> FuncDef FuncType Block Stmt Exp PrimaryExp UnaryExp AddExp MulExp RelExp EqExp LAndExp LOrExp Number Decl ConstDecl BType ConstDefs ConstDef ConstInitVal BlockItems BlockItem LVal ConstExp VarDecl VarDefs VarDef InitVal Open_If_Stmt Closed_If_Stmt
 %%
 CompUnit
     :   FuncDef 
@@ -220,16 +220,33 @@ InitVal
     ;
 
 Stmt
-    :   RETURN Exp ';'
+    :   Open_If_Stmt
         {
             auto cur=new Stmt();
+            cur->cur_derivation_=0;
+            cur->subexp_=unique_ptr<BaseAst>($1);
+            $$=cur;
+        }
+    |   Closed_If_Stmt
+        {
+            auto cur=new Stmt();
+            cur->cur_derivation_=1;
+            cur->subexp_=unique_ptr<BaseAst>($1);
+            $$=cur;
+        }
+    ;
+
+Closed_If_Stmt
+    :   RETURN Exp ';'
+        {
+            auto cur=new Closed_If_Stmt();
             cur->cur_derivation_=0;
             cur->subexp1_=unique_ptr<BaseAst>($2);
             $$=cur;
         }
     |   LVal EQ Exp ';'
         {
-            auto cur=new Stmt();
+            auto cur=new Closed_If_Stmt();
             cur->cur_derivation_=1;
             cur->subexp1_=unique_ptr<BaseAst>($1);
             cur->subexp2_=unique_ptr<BaseAst>($3);
@@ -237,22 +254,51 @@ Stmt
         }
     |   ';'
         {
-            auto cur=new Stmt();
+            auto cur=new Closed_If_Stmt();
             cur->cur_derivation_=2;
             $$=cur;
         }
     |   Exp ';'
         {
-            auto cur=new Stmt();
+            auto cur=new Closed_If_Stmt();
             cur->cur_derivation_=3;
             cur->subexp1_=unique_ptr<BaseAst>($1);
             $$=cur;
         }
     |   Block
         {
-            auto cur=new Stmt();
+            auto cur=new Closed_If_Stmt();
             cur->cur_derivation_=4;
             cur->subexp1_=unique_ptr<BaseAst>($1);
+            $$=cur;
+        }
+    |   IF '(' Exp ')' Closed_If_Stmt ELSE Closed_If_Stmt
+        {
+            auto cur=new Closed_If_Stmt();
+            cur->cur_derivation_=5;
+            cur->subexp1_=unique_ptr<BaseAst>($3);
+            cur->subexp2_=unique_ptr<BaseAst>($5);
+            cur->subexp3_=unique_ptr<BaseAst>($7);
+            $$=cur;
+        }
+    ;
+
+Open_If_Stmt
+    :   IF '(' Exp ')' Stmt
+        {
+            auto cur=new Open_If_Stmt();
+            cur->cur_derivation_=0;
+            cur->subexp1_=unique_ptr<BaseAst>($3);
+            cur->subexp2_=unique_ptr<BaseAst>($5);
+            $$=cur;
+        }
+    |   IF '(' Exp ')' Closed_If_Stmt ELSE Open_If_Stmt
+        {
+            auto cur=new Open_If_Stmt();
+            cur->cur_derivation_=1;
+            cur->subexp1_=unique_ptr<BaseAst>($3);
+            cur->subexp2_=unique_ptr<BaseAst>($5);
+            cur->subexp3_=unique_ptr<BaseAst>($7);
             $$=cur;
         }
     ;

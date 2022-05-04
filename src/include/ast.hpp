@@ -249,8 +249,29 @@ class Stmt : public BaseAst
 {
 public:
     int cur_derivation_;
-    unique_ptr<BaseAst> subexp1_;
-    unique_ptr<BaseAst> subexp2_;
+    unique_ptr<BaseAst> subexp_ = NULL;
+    void Print(string indent="") override;
+    void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) override;
+};
+
+class Closed_If_Stmt : public BaseAst
+{
+public:
+    int cur_derivation_;
+    unique_ptr<BaseAst> subexp1_ = NULL;
+    unique_ptr<BaseAst> subexp2_ = NULL;
+    unique_ptr<BaseAst> subexp3_ = NULL;
+    void Print(string indent="") override;
+    void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) override;
+};
+
+class Open_If_Stmt : public BaseAst
+{
+public:
+    int cur_derivation_;
+    unique_ptr<BaseAst> subexp1_ = NULL;
+    unique_ptr<BaseAst> subexp2_ = NULL;
+    unique_ptr<BaseAst> subexp3_ = NULL;
     void Print(string indent="") override;
     void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) override;
 };

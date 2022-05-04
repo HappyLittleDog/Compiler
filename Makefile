@@ -106,7 +106,7 @@ clean:
 # 0: koopa
 # 1: riscv
 TESTMODE := 0
-TESTFILENAME := block
+TESTFILENAME := if
 TESTFLAG :=
 TESTOUTEXT :=
 ifeq ($(TESTMODE),0)

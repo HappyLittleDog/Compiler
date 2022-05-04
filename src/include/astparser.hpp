@@ -28,6 +28,14 @@ void Visit(const koopa_raw_function_t &func);
 
 void Visit(const koopa_raw_basic_block_t &bb, Register_Allocator *ra, Stack_Allocator *sa);
 
+/**
+ * @brief Visit raw value: Important central function
+ * 
+ * @param value koopa_raw_value_t of the val
+ * @param ra 
+ * @param sa 
+ * @param dest_register used for visit INTEGER ONLY! It will move the integer to the dest_register.
+ */
 void Visit(const koopa_raw_value_t &value, Register_Allocator *ra, Stack_Allocator *sa, string dest_register=string(""));
 
 void VisitBin(const koopa_raw_value_t &val, Register_Allocator *ra, Stack_Allocator *sa);
@@ -47,6 +55,10 @@ void VisitLoad(const koopa_raw_value_t &val, Register_Allocator *ra, Stack_Alloc
 string ImplicitLoad(const koopa_raw_value_t &val, Register_Allocator *ra, Stack_Allocator *sa);
 
 void VisitStore(const koopa_raw_value_t &val, Register_Allocator *ra, Stack_Allocator *sa);
+
+void VisitBranch(const koopa_raw_value_t &val, Register_Allocator *ra, Stack_Allocator *sa);
+
+void VisitJump(const koopa_raw_value_t &val, Register_Allocator *ra, Stack_Allocator *sa);
 
 void Visit(const koopa_raw_integer_t &integer, string dest_register);
 

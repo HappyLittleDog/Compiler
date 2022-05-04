@@ -23,6 +23,8 @@ int new_entry()
     return entry_counter;
 }
 
+bool return_flag=false;
+
 void CompUnit::Print(string indent)
 {
     cout<<indent<<"CompUnit {\n";
@@ -52,7 +54,7 @@ void FuncDef::Dump(basic_ostream<char>& fs, string indent, int dest)
     functype_->Dump(fs,"");
     fs<<indent<<" {"<<endl;
     fs<<indent<<"\%entry_"<<new_entry()<<":"<<endl;
-    block_->Dump(fs,indent);
+    block_->Dump(fs,indent+"\t");
     fs<<indent<<"}"<<endl;
 }
 
@@ -101,6 +103,7 @@ void BlockItems::Print(string indent)
 
 void BlockItems::Dump(basic_ostream<char>& fs, string indent, int dest)
 {
+    return_flag=false;
     for (int i=0; i<items_.size(); i++)
     {
         items_[i]->Dump(fs,indent);
@@ -266,7 +269,18 @@ void InitVal::Dump(basic_ostream<char>& fs, string indent, int dest)
 
 void Stmt::Print(string indent)
 {
-    cout<<indent<<"Stmt {\n";
+    subexp_->Print(indent);
+}
+
+void Stmt::Dump(basic_ostream<char>& fs, string indent, int dest)
+{
+    if (!return_flag)
+        subexp_->Dump(fs,indent);
+}
+
+void Closed_If_Stmt::Print(string indent)
+{
+    cout<<indent<<"Closed_If_Stmt {\n";
     string curindent=indent+"|\t";
     switch (cur_derivation_)
     {
@@ -291,22 +305,32 @@ void Stmt::Print(string indent)
         subexp1_->Print(curindent);
         break;
 
+    case 5: // IF '(' Exp ')' Closed_If_Stmt ELSE Closed_If_Stmt
+        cout<<curindent<<"IF (\n";
+        subexp1_->Print(curindent+"|\t");
+        cout<<curindent<<")\n";
+        subexp2_->Print(curindent+"|\t");
+        cout<<curindent<<"ELSE\n";
+        subexp3_->Print(curindent+"|\t");
+        break;
+
     default:
-        LOG_ERROR("@Stmt::print: Unrecognized cur_derivation_=%d",cur_derivation_);
+        LOG_ERROR("@Closed_If_Stmt::print: Unrecognized cur_derivation_=%d",cur_derivation_);
         break;
     }
     cout<<indent<<"}\n";
 }
 
-void Stmt::Dump(basic_ostream<char>& fs, string indent, int dest)
+void Closed_If_Stmt::Dump(basic_ostream<char>& fs, string indent, int dest)
 {
-    int tpvar;
+    int tpvar, entry1, entry2, entry3;
     switch (cur_derivation_)
     {
     case 0: // RETURN Exp ';'
         tpvar=new_tempvar();
         subexp1_->Dump(fs,indent,tpvar);
         fs<<indent<<"ret %"<<tpvar<<endl;
+        return_flag=true;
         break;
     
     case 1: // LVal EQ Exp ';'
@@ -332,8 +356,120 @@ void Stmt::Dump(basic_ostream<char>& fs, string indent, int dest)
         subexp1_->Dump(fs,indent,dest);
         break;
 
+    case 5: // IF '(' Exp ')' Closed_If_Stmt ELSE Closed_If_Stmt
+        tpvar=new_tempvar();
+        entry1=new_entry();
+        entry2=new_entry();
+        entry3=new_entry();
+        subexp1_->Dump(fs,indent,tpvar);
+        fs<<"\tbr %"<<tpvar<<", \%then_"<<entry1<<", \%else_"<<entry2<<endl;
+        fs<<endl<<"//! IF branch of the if stmt"<<endl;
+        fs<<"\%then_"<<entry1<<":"<<endl;
+        return_flag=false;
+        subexp2_->Dump(fs,indent);
+        if (return_flag==false)
+            fs<<"\tjump \%end_"<<entry3<<endl;
+        return_flag=false;
+
+        fs<<endl<<"//! ELSE branch of the if stmt"<<endl;
+        fs<<"\%else_"<<entry2<<":"<<endl;
+        return_flag=false;
+        subexp3_->Dump(fs,indent);
+        if (return_flag==false)
+            fs<<"\tjump \%end_"<<entry3<<endl;
+        return_flag=false;
+
+        fs<<endl<<"//! end of the if stmt"<<endl;
+        fs<<"\%end_"<<entry3<<":"<<endl;
+        break;
+
     default:
-        LOG_ERROR("@Stmt::dump: Unrecognized cur_derivation_=%d",cur_derivation_);
+        LOG_ERROR("@Closed_If_Stmt::dump: Unrecognized cur_derivation_=%d",cur_derivation_);
+        break;
+    }
+}
+
+void Open_If_Stmt::Print(string indent)
+{
+    cout<<indent<<"Closed_If_Stmt {\n";
+    string curindent=indent+"|\t";
+    switch (cur_derivation_)
+    {
+    case 0: // IF '(' Exp ')' Stmt
+        cout<<curindent<<"IF (\n";
+        subexp1_->Print(curindent+"|\t");
+        cout<<curindent<<")\n";
+        subexp2_->Print(curindent+"|\t");
+        break;
+    
+    case 1: // IF '(' Exp ')' Closed_If_Stmt ELSE Open_If_Stmt
+        cout<<curindent<<"IF (\n";
+        subexp1_->Print(curindent+"|\t");
+        cout<<curindent<<")\n";
+        subexp2_->Print(curindent+"|\t");
+        cout<<curindent<<"ELSE\n";
+        subexp3_->Print(curindent+"|\t");
+        break;
+
+    default:
+        LOG_ERROR("@Open_If_Stmt::print: Unrecognized cur_derivation_=%d",cur_derivation_);
+        break;
+    }
+    cout<<indent<<"}\n";
+}
+
+void Open_If_Stmt::Dump(basic_ostream<char>& fs, string indent, int dest)
+{
+    int tpvar, entry1, entry2, entry3;
+    switch (cur_derivation_)
+    {
+    case 0: // IF '(' Exp ')' Stmt
+        tpvar=new_tempvar();
+        entry1=new_entry();
+        entry2=new_entry();
+        subexp1_->Dump(fs,indent,tpvar);
+        fs<<"\tbr %"<<tpvar<<", \%then_"<<entry1<<", \%end_"<<entry2<<endl;
+        fs<<endl<<"//! IF branch of the if stmt"<<endl;
+        fs<<"\%then_"<<entry1<<":"<<endl;
+        return_flag=false;
+        subexp2_->Dump(fs,indent);
+        if (return_flag==false)
+            fs<<"\tjump \%end_"<<entry2<<endl;
+        return_flag=false;
+
+        fs<<endl<<"//! end of the if stmt"<<endl;
+        fs<<"\%end_"<<entry2<<":"<<endl;
+        break;
+    
+    case 1: // IF '(' Exp ')' Closed_If_Stmt ELSE Open_If_Stmt
+        tpvar=new_tempvar();
+        entry1=new_entry();
+        entry2=new_entry();
+        entry3=new_entry();
+        subexp1_->Dump(fs,indent,tpvar);
+        fs<<"\tbr %"<<tpvar<<", \%then_"<<entry1<<", \%else_"<<entry2<<endl;
+        fs<<endl<<"//! IF branch of the if stmt"<<endl;
+        fs<<"\%then_"<<entry1<<":"<<endl;
+        return_flag=false;
+        subexp2_->Dump(fs,indent);
+        if (return_flag==false)
+            fs<<"\tjump \%end_"<<entry3<<endl;
+        return_flag=false;
+
+        fs<<endl<<"//! ELSE branch of the if stmt"<<endl;
+        fs<<"\%else_"<<entry2<<":"<<endl;
+        return_flag=false;
+        subexp3_->Dump(fs,indent);
+        if (return_flag==false)
+            fs<<"\tjump \%end_"<<entry3<<endl;
+        return_flag=false;
+
+        fs<<endl<<"//! end of the if stmt"<<endl;
+        fs<<"\%end_"<<entry3<<":"<<endl;
+        break;
+
+    default:
+        LOG_ERROR("@Open_If_Stmt::print: Unrecognized cur_derivation_=%d",cur_derivation_);
         break;
     }
 }

@@ -49,42 +49,42 @@ public:
 		LOG_ERROR("NO AVAILABLE REGISTERS!");
 		return "";
 	}
-	string allocate(const void *addr)
-	{
-		string reg;
-		for (int i = 0; i < 7; i++)
-		{
-			if (T_[i])
-			{
-				T_[i] = false;
-				reg = "t" + to_string(i);
-				nt.insert(make_pair(addr, reg));
-				return reg;
-			}
-		}
-		for (int i = 0; i < 8; i++)
-		{
-			if (A_[i])
-			{
-				A_[i] = false;
-				reg = "a" + to_string(i);
-				nt.insert(make_pair(addr, reg));
-				return reg;
-			}
-		}
-		LOG_ERROR("NO AVAILABLE REGISTERS!");
-		return "";
-	}
-	void free(const void *addr)
-	{
-		auto it = nt.find(addr);
-		if (it == nt.end())
-		{
-			LOG_ERROR("@get_pos: can NOT find pos w.r.t addr %p", addr);
-			return;
-		}
-		nt.erase(it);
-	}
+	// string allocate(const void *addr)
+	// {
+	// 	string reg;
+	// 	for (int i = 0; i < 7; i++)
+	// 	{
+	// 		if (T_[i])
+	// 		{
+	// 			T_[i] = false;
+	// 			reg = "t" + to_string(i);
+	// 			nt.insert(make_pair(addr, reg));
+	// 			return reg;
+	// 		}
+	// 	}
+	// 	for (int i = 0; i < 8; i++)
+	// 	{
+	// 		if (A_[i])
+	// 		{
+	// 			A_[i] = false;
+	// 			reg = "a" + to_string(i);
+	// 			nt.insert(make_pair(addr, reg));
+	// 			return reg;
+	// 		}
+	// 	}
+	// 	LOG_ERROR("NO AVAILABLE REGISTERS!");
+	// 	return "";
+	// }
+	// void free(const void *addr)
+	// {
+	// 	auto it = nt.find(addr);
+	// 	if (it == nt.end())
+	// 	{
+	// 		LOG_ERROR("@get_pos: can NOT find pos w.r.t addr %p", addr);
+	// 		return;
+	// 	}
+	// 	nt.erase(it);
+	// }
 	void free_temp(string &reg)
 	{
 		int cur = stoi(reg.substr(1));
@@ -109,16 +109,16 @@ public:
 			LOG_ERROR("%s: unexpected register.", reg.c_str());
 		}
 	}
-	string get_pos(const void *addr)
-	{
-		auto it = nt.find(addr);
-		if (it == nt.end())
-		{
-			LOG_ERROR("@get_pos: can NOT find pos w.r.t addr %p", addr);
-			return "";
-		}
-		return it->second;
-	}
+	// string get_pos(const void *addr)
+	// {
+	// 	auto it = nt.find(addr);
+	// 	if (it == nt.end())
+	// 	{
+	// 		LOG_ERROR("@get_pos: can NOT find pos w.r.t addr %p", addr);
+	// 		return "";
+	// 	}
+	// 	return it->second;
+	// }
 };
 
 class Stack_Allocator
@@ -221,14 +221,17 @@ void Visit(const koopa_raw_basic_block_t &bb, Register_Allocator *ra, Stack_Allo
 	// 执行一些其他的必要操作
 	// ...
 	// 访问所有指令
+	asms<<&bb->name[1]<<":"<<endl;
 	Visit(bb->insts, ra, sa);
 }
 
-// 访问指令
 void Visit(const koopa_raw_value_t &value, Register_Allocator *ra, Stack_Allocator *sa, string dest_register)
 {
+	// LOG_DEBUG("@Visit: dest_register=%s",dest_register.c_str());
 	// 根据指令类型判断后续需要如何访问
 	const auto &kind = value->kind;
+	if (kind.tag!=KOOPA_RVT_INTEGER)
+		assert(dest_register=="");
 	switch (kind.tag)
 	{
 	case KOOPA_RVT_RETURN:
@@ -250,6 +253,12 @@ void Visit(const koopa_raw_value_t &value, Register_Allocator *ra, Stack_Allocat
 		break;
 	case KOOPA_RVT_STORE:
 		VisitStore(value,ra,sa);
+		break;
+	case KOOPA_RVT_BRANCH:
+		VisitBranch(value, ra, sa);
+		break;
+	case KOOPA_RVT_JUMP:
+		VisitJump(value,ra,sa);
 		break;
 
 	default:
@@ -923,6 +932,20 @@ void VisitStore(const koopa_raw_value_t &val, Register_Allocator *ra, Stack_Allo
 		asms<<"\tsw "<<tpreg<<", "<<sa->get_pos((const void*)val->kind.data.store.dest)<<"(sp)"<<endl;
 		ra->free_temp(tpreg);
 	}
+}
+
+void VisitBranch(const koopa_raw_value_t &val, Register_Allocator *ra, Stack_Allocator *sa)
+{
+	// asms<<"# if exp:"<<endl;
+	string tpvar=ImplicitLoad(val->kind.data.branch.cond, ra, sa);
+	asms<<"\tbnez "<<tpvar<<", "<<&(val->kind.data.branch.true_bb->name)[1]<<endl;
+	asms<<"\tj "<<&(val->kind.data.branch.false_bb->name)[1]<<endl;
+	ra->free_temp(tpvar);
+}
+
+void VisitJump(const koopa_raw_value_t &val, Register_Allocator *ra, Stack_Allocator *sa)
+{
+	asms<<"\tj "<<&(val->kind.data.jump.target->name)[1]<<endl;
 }
 
 void Visit(const koopa_raw_integer_t &integer, string dest_register)
