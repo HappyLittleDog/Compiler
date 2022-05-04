@@ -106,7 +106,7 @@ clean:
 # 0: koopa
 # 1: riscv
 TESTMODE := 0
-TESTFILENAME := circuit
+TESTFILENAME := while
 TESTFLAG :=
 TESTOUTEXT :=
 ifeq ($(TESTMODE),0)

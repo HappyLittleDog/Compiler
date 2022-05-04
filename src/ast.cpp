@@ -24,6 +24,8 @@ int new_entry()
 }
 
 bool return_flag=false;
+int cur_while_exp=-1;
+int cur_while_end=-1;
 
 void CompUnit::Print(string indent)
 {
@@ -313,6 +315,22 @@ void Closed_If_Stmt::Print(string indent)
         cout<<curindent<<"ELSE\n";
         subexp3_->Print(curindent+"|\t");
         break;
+    
+    case 6: // WHILE '(' Exp ')' Stmt
+        cout<<curindent<<"WHILE (\n";
+        subexp1_->Print(curindent+"|\t");
+        cout<<curindent<<")\n";
+        cout<<curindent<<"DO\n";
+        subexp2_->Print(curindent+"|\t");
+        break;
+
+    case 7: // BREAK ';'
+        cout<<curindent<<"BREAK\n";
+        break;
+    
+    case 8: // CONTINUE ';'
+        cout<<curindent<<"CONTINUE\n";
+        break;
 
     default:
         LOG_ERROR("@Closed_If_Stmt::print: Unrecognized cur_derivation_=%d",cur_derivation_);
@@ -324,6 +342,7 @@ void Closed_If_Stmt::Print(string indent)
 void Closed_If_Stmt::Dump(basic_ostream<char>& fs, string indent, int dest)
 {
     int tpvar, entry1, entry2, entry3;
+    int prev_cur_while_exp, prev_cur_while_end;
     switch (cur_derivation_)
     {
     case 0: // RETURN Exp ';'
@@ -381,6 +400,44 @@ void Closed_If_Stmt::Dump(basic_ostream<char>& fs, string indent, int dest)
 
         fs<<endl<<"//! end of the if stmt"<<endl;
         fs<<"\%end_"<<entry3<<":"<<endl;
+        break;
+    
+    case 6: // WHILE '(' Exp ')' Stmt
+        tpvar=new_tempvar();
+        entry1=new_entry();
+        entry2=new_entry();
+        entry3=new_entry();
+        prev_cur_while_exp=cur_while_exp;
+        prev_cur_while_end=cur_while_end;
+        cur_while_exp=entry1;
+        cur_while_end=entry3;
+        fs<<indent<<"jump \%while_exp_"<<entry1<<endl;
+
+        fs<<endl<<"\%while_exp_"<<entry1<<":"<<endl;
+        subexp1_->Dump(fs,indent,tpvar);
+        fs<<indent<<"br %"<<tpvar<<", \%while_loop_"<<entry2<<", \%while_end_"<<entry3<<endl;
+
+        fs<<endl<<"\%while_loop_"<<entry2<<":"<<endl;
+        return_flag=false;
+        subexp2_->Dump(fs,indent,tpvar);
+        if (return_flag==false)
+            fs<<indent<<"jump \%while_exp_"<<entry1<<endl;
+        return_flag=false;
+
+        fs<<endl<<"\%while_end_"<<entry3<<":"<<endl;
+
+        cur_while_exp=prev_cur_while_exp;
+        cur_while_end=prev_cur_while_end;
+        break;
+    
+    case 7: // BREAK ';'
+        return_flag=true;
+        fs<<indent<<"jump \%while_end_"<<cur_while_end<<endl;
+        break;
+    
+    case 8: // CONTINUE ';'
+        return_flag=true;
+        fs<<indent<<"jump \%while_exp_"<<cur_while_exp<<endl;
         break;
 
     default:

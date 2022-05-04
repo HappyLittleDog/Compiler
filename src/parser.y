@@ -21,7 +21,7 @@ void yyerror(std::unique_ptr<BaseAst> &ast, const char *s);
     std::string* str_val;
     BaseAst* ast_val;
 }
-%token INT RETURN PLUS MINUS MULT DIV MOD EQQ NEQ LT GT LEQ GEQ NOT AND OR EQ CONST IF ELSE
+%token INT RETURN PLUS MINUS MULT DIV MOD EQQ NEQ LT GT LEQ GEQ NOT AND OR EQ CONST IF ELSE WHILE BREAK CONTINUE
 %token <str_val> IDENT
 %token <int_val> INT_CONST
 %type <ast_val> FuncDef FuncType Block Stmt Exp PrimaryExp UnaryExp AddExp MulExp RelExp EqExp LAndExp LOrExp Number Decl ConstDecl BType ConstDefs ConstDef ConstInitVal BlockItems BlockItem LVal ConstExp VarDecl VarDefs VarDef InitVal Open_If_Stmt Closed_If_Stmt
@@ -279,6 +279,26 @@ Closed_If_Stmt
             cur->subexp1_=unique_ptr<BaseAst>($3);
             cur->subexp2_=unique_ptr<BaseAst>($5);
             cur->subexp3_=unique_ptr<BaseAst>($7);
+            $$=cur;
+        }
+    |   WHILE '(' Exp ')' Stmt
+        {
+            auto cur=new Closed_If_Stmt();
+            cur->cur_derivation_=6;
+            cur->subexp1_=unique_ptr<BaseAst>($3);
+            cur->subexp2_=unique_ptr<BaseAst>($5);
+            $$=cur;
+        }
+    |   BREAK ';'
+        {
+            auto cur=new Closed_If_Stmt();
+            cur->cur_derivation_=7;
+            $$=cur;
+        }
+    |   CONTINUE ';'
+        {
+            auto cur=new Closed_If_Stmt();
+            cur->cur_derivation_=8;
             $$=cur;
         }
     ;

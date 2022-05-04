@@ -29,6 +29,9 @@ IDChar                  [0-9A-Za-z_]
 "const"                                                 {return CONST;}
 "if"                                                    {return IF;}
 "else"                                                  {return ELSE;}
+"while"                                                 {return WHILE;}
+"break"                                                 {return BREAK;}
+"continue"                                              {return CONTINUE;}
 [(){};,]                                                {return yytext[0];}
 "+"                                                     {return PLUS;}
 "\-"                                                    {return MINUS;}
