@@ -25,6 +25,7 @@ IDChar                  [0-9A-Za-z_]
 {WhiteSpace}                                            {;}
 {LineComment}|{LongComment}                             {;}
 "int"                                                   {return INT;}
+"void"                                                  {return VOID;}
 "return"                                                {return RETURN;}
 "const"                                                 {return CONST;}
 "if"                                                    {return IF;}

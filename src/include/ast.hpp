@@ -96,41 +96,86 @@ public:
     virtual int IsConst() {LOG_ERROR("@IsConst: unexpected function call!"); return -1;} // used for expression ONLY!
     virtual int CalcVal() {LOG_ERROR("@CalcVal: Unexpected function call!"); return 0;} // used for expression ONLY!
     virtual string GetIdent() {LOG_ERROR("@GetIdent: Unexpected function call!"); return "";} // used for LVal ONLY!
+    virtual void FuncBlockDump(basic_ostream<char>& fs, string indent, BaseAst* pt) {LOG_ERROR("@FuncBlockDump: Unexpected function call!");} // used for func block ONLY!
+    virtual void ReAllocateFParams(basic_ostream<char>& fs, string indent) {LOG_ERROR("@ReAllocateFParams: Unexpected function call!");}
+};
+
+class CompUnits : public BaseAst
+{
+public:
+    vector<unique_ptr<BaseAst> > items_;
+    void Print(string indent="") override;
+    void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) override;
 };
 
 class CompUnit : public BaseAst
 {
 public:
-    unique_ptr<BaseAst> funcdef_;
+    unique_ptr<BaseAst> item_;
     void Print(string indent="") override;
     void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) override;
 };
+
+// class FuncDefs : public BaseAst
+// {
+// public:
+//     vector<unique_ptr<BaseAst> > funcdefs_;
+//     void Print(string indent="") override;
+//     void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) override;
+// };
 
 class FuncDef : public BaseAst
 {
 public:
-    unique_ptr<BaseAst> functype_;
+    int functype_; // 0: void, 1: int
     string ident_;
+    shared_ptr<BaseAst> params_=nullptr;
     unique_ptr<BaseAst> block_;
     void Print(string indent="") override;
     void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) override;
+    void FuncBlockDump(basic_ostream<char>& fs, string indent, BaseAst* pt) override;
 };
 
-class FuncType : public BaseAst
+class FuncFParams : public BaseAst
 {
 public:
-    DataType rettype_;
+    vector<unique_ptr<BaseAst> > params_;
+    void Print(string indent="") override;
+    void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) override;       // output IR
+    void FuncBlockDump(basic_ostream<char>& fs, string indent, BaseAst* pt) override; // insert symbol into symtab
+    void ReAllocateFParams(basic_ostream<char>& fs, string indent) override;
+};
+
+class FuncFParam : public BaseAst
+{
+public:
+    int type_;
+    string ident_;
     void Print(string indent="") override;
     void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) override;
+    void FuncBlockDump(basic_ostream<char>& fs, string indent, BaseAst* pt) override;
+    void ReAllocateFParams(basic_ostream<char>& fs, string indent) override;
+};
+
+class FuncRParams : public BaseAst
+{
+public:
+    vector<unique_ptr<BaseAst> > params_;
+    vector<int> param_pos_;
+    void Print(string indent="") override;
+    void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) override;
+    void FuncBlockDump(basic_ostream<char>& fs, string indent, BaseAst* pt) override;
 };
 
 class Block : public BaseAst
 {
 public:
     unique_ptr<BaseAst> items_;
+    shared_ptr<BaseAst> params_=nullptr;
     SymTab* SymTab_;
     void Print(string indent="") override;
     void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) override;
+    void FuncBlockDump(basic_ostream<char>& fs, string indent, BaseAst* pt) override;
 };
 
 class BlockItems : public BaseAst
@@ -161,6 +206,7 @@ public:
 class ConstDecl : public BaseAst
 {
 public:
+    int type_;
     unique_ptr<BaseAst> item_;
     void Print(string indent="") override;
     void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) override;
@@ -169,6 +215,7 @@ public:
 class VarDecl : public BaseAst
 {
 public:
+    int type_;
     unique_ptr<BaseAst> item_;
     void Print(string indent="") override;
     void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) override;
@@ -478,6 +525,7 @@ class UnaryExp : public BaseAst
 public:
     int isconst_=-1;
     int cur_derivation_;
+    string ident_; // used for function call
     unique_ptr<BaseAst> subexp_;
     void Print(string indent="") override;
     void Dump(basic_ostream<char>& fs, string indent="", int dest=-1) override;

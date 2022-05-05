@@ -14,7 +14,7 @@ endif
 CFLAGS := -Wall -std=c11
 CXXFLAGS := -Wall -Wno-register -std=c++17
 FFLAGS :=
-BFLAGS := -d
+BFLAGS := -d -v
 LDFLAGS :=
 LOGMODE :=
 
@@ -105,8 +105,8 @@ clean:
 
 # 0: koopa
 # 1: riscv
-TESTMODE := 0
-TESTFILENAME := while
+TESTMODE := 1
+TESTFILENAME := global
 TESTFLAG :=
 TESTOUTEXT :=
 ifeq ($(TESTMODE),0)

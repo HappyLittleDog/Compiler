@@ -60,6 +60,10 @@ void VisitBranch(const koopa_raw_value_t &val, Register_Allocator *ra, Stack_All
 
 void VisitJump(const koopa_raw_value_t &val, Register_Allocator *ra, Stack_Allocator *sa);
 
+void VisitCall(const koopa_raw_value_t &val, Register_Allocator *ra, Stack_Allocator *sa);
+
+void VisitGlobalVar(const koopa_raw_value_t &val, Register_Allocator *ra, Stack_Allocator *sa);
+
 void Visit(const koopa_raw_integer_t &integer, string dest_register);
 
 ///

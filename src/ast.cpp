@@ -1,7 +1,7 @@
 #include "include/ast.hpp"
 using namespace std;
 
-SymTab* CurSymTab = NULL;
+SymTab* CurSymTab = new SymTab();
 int temp_var_counter=0;
 int new_tempvar()
 {
@@ -26,25 +26,68 @@ int new_entry()
 bool return_flag=false;
 int cur_while_exp=-1;
 int cur_while_end=-1;
+bool global_var=false;
+
+string libsysy="decl @getint(): i32\ndecl @getch(): i32\ndecl @getarray(*i32): i32\ndecl @putint(i32)\ndecl @putch(i32)\ndecl @putarray(i32, *i32)\ndecl @starttime()\ndecl @stoptime()\n";
+
+void CompUnits::Print(string indent)
+{
+    for (int i=0;i<items_.size();i++)
+        items_[i]->Print(indent);
+}
+
+void CompUnits::Dump(basic_ostream<char>& fs, string indent, int dest)
+{
+    fs<<libsysy<<endl;
+    for (int i=0;i<items_.size();i++)
+        items_[i]->Dump(fs,indent);
+}
 
 void CompUnit::Print(string indent)
 {
     cout<<indent<<"CompUnit {\n";
     string curindent=indent+"|\t";
-    funcdef_->Print(curindent);
+    item_->Print(curindent);
     cout<<indent<<"}\n";
 }
 
 void CompUnit::Dump(basic_ostream<char>& fs, string indent, int dest)
 {
-    funcdef_->Dump(fs,indent);
+    global_var=true;
+    item_->Dump(fs,indent);
 }
+
+// void FuncDefs::Print(string indent)
+// {
+//     for (int i=0;i<funcdefs_.size();i++)
+//         funcdefs_[i]->Print(indent);
+// }
+
+// void FuncDefs::Dump(basic_ostream<char>& fs, string indent, int dest)
+// {
+//     global_var=false;
+//     for (int i=0;i<funcdefs_.size();i++)
+//     {
+//         funcdefs_[i]->Dump(fs,indent);
+//         fs<<endl;
+//     }
+// }
 
 void FuncDef::Print(string indent)
 {
     cout<<indent<<"FuncDef {\n";
     string curindent=indent+"|\t";
-    functype_->Print(curindent);
+    switch (functype_)
+    {
+    case 0: // void
+        cout<<curindent<<"VOID"<<endl;
+        break;
+    case 1: // int
+        cout<<curindent<<"INT"<<endl;
+        break;
+    default:
+        break;
+    }
     cout<<curindent<<"name: "<<ident_<<";\n";
     block_->Print(curindent);
     cout<<indent<<"}\n";
@@ -52,34 +95,153 @@ void FuncDef::Print(string indent)
 
 void FuncDef::Dump(basic_ostream<char>& fs, string indent, int dest)
 {
-    fs<<indent<<"fun @"<<ident_<<"()";
-    functype_->Dump(fs,"");
-    fs<<indent<<" {"<<endl;
-    fs<<indent<<"\%entry_"<<new_entry()<<":"<<endl;
-    block_->Dump(fs,indent+"\t");
+    global_var=false;
+    block_->FuncBlockDump(fs,indent,this);
     fs<<indent<<"}"<<endl;
 }
 
-void FuncType::Print(string indent)
+void FuncDef::FuncBlockDump(basic_ostream<char>& fs, string indent, BaseAst* pt)
 {
-    if (rettype_==DataType::INT)
-        cout<<indent<<"FuncType: int;\n";
-    else if (rettype_==DataType::VOID)
-        cout<<indent<<"FuncType: void\n";
-    else
-        cout<<indent<<"FuncType: ???\n";
+    fs<<indent<<"fun @"<<ident_<<"(";
+    if (params_!=nullptr)
+        params_->Dump(fs,indent);
+    fs<<")";
+    switch (functype_)
+    {
+    case 0: // void
+        fs<<"";
+        break;
+    case 1: // int
+        fs<<indent<<": i32";
+        break;
+    default:
+        break;
+    }
+    fs<<indent<<" {"<<endl;
+    fs<<indent<<"\%entry_"<<new_entry()<<":"<<endl;
 }
 
-void FuncType::Dump(basic_ostream<char>& fs, string indent, int dest)
+void FuncFParams::Print(string indent)
 {
-    if (rettype_==DataType::INT)
-        fs<<indent<<": i32";
+    cout<<indent<<"PARAMS: ("<<endl;
+    string curindent=indent+"|\t";
+    for (int i=0;i<params_.size();i++)
+        params_[i]->Print(curindent);
+    cout<<indent<<")"<<endl;
+}
+
+void FuncFParams::Dump(basic_ostream<char>& fs, string indent, int dest)
+{
+    if (params_.size()==0)
+        return;
+    else if (params_.size()==1)
+        params_[0]->Dump(fs,"");
     else
-        fs<<indent<<"";
+    {
+        params_[0]->Dump(fs,"");
+        for (int i=1;i<params_.size();i++)
+        {
+            params_[i]->Dump(fs,", ");
+        }
+    }
+}
+
+void FuncFParams::FuncBlockDump(basic_ostream<char>& fs, string indent, BaseAst* pt)
+{
+    for (int i=0;i<params_.size();i++)
+    {
+        params_[i]->FuncBlockDump(fs,indent,NULL);
+    }
+}
+
+void FuncFParams::ReAllocateFParams(basic_ostream<char>& fs, string indent)
+{
+    for (int i=0;i<params_.size();i++)
+    {
+        params_[i]->ReAllocateFParams(fs,indent);
+    }
+}
+
+void FuncFParam::Print(string indent)
+{
+    cout<<indent;
+    switch (type_)
+    {
+    case 1:
+        cout<<"INT\t";
+        break;
+    
+    default:
+        break;
+    }
+    cout<<ident_<<endl;
+}
+
+void FuncFParam::Dump(basic_ostream<char>& fs, string indent, int dest)
+{
+    fs<<indent<<"@PARAM_"<<CurSymTab->find(ident_).val_<<": ";
+    switch (type_)
+    {
+    case 1:
+        fs<<"i32";
+        break;
+    
+    default:
+        LOG_ERROR("@FuncFParam::Dump: unexpected type_=%d",type_);
+        break;
+    }
+}
+
+void FuncFParam::FuncBlockDump(basic_ostream<char>& fs, string indent, BaseAst* pt)
+{
+    CurSymTab->insert_var(ident_);
+}
+
+void FuncFParam::ReAllocateFParams(basic_ostream<char>& fs, string indent)
+{
+    int pos=CurSymTab->find(ident_).val_;
+    fs<<indent<<"@VAR_"<<pos<<" = alloc i32"<<endl;
+    fs<<indent<<"store @PARAM_"<<pos<<", @VAR_"<<pos<<endl;
+}
+
+void FuncRParams::Print(string indent)
+{
+    for (int i=0;i<params_.size();i++)
+        params_[i]->Print(indent);
+}
+
+void FuncRParams::Dump(basic_ostream<char>& fs, string indent, int dest)
+{
+    if (param_pos_.size()==0)
+        return;
+    else if (param_pos_.size()==1)
+    {
+        fs<<"%"<<param_pos_[0];
+    }
+    else
+    {
+        fs<<"%"<<param_pos_[0];
+        for (int i=1;i<param_pos_.size();i++)
+        {
+            fs<<", %"<<param_pos_[i];
+        }
+    }
+}
+
+void FuncRParams::FuncBlockDump(basic_ostream<char>& fs, string indent, BaseAst* pt)
+{
+    for (int i=0;i<params_.size();i++)
+    {
+        int tpvar=new_tempvar();
+        param_pos_.push_back(tpvar);
+        params_[i]->Dump(fs,indent,tpvar);
+    }
 }
 
 void Block::Print(string indent)
 {
+    if (params_!=nullptr)
+        params_->Print(indent);
     cout<<indent<<"Block {\n";
     string curindent=indent+"|\t";
     items_->Print(curindent);
@@ -91,7 +253,34 @@ void Block::Dump(basic_ostream<char>& fs, string indent, int dest)
     SymTab_=new SymTab();
     SymTab_->pred_=CurSymTab;
     CurSymTab=SymTab_;
+
+    // if (params_!=nullptr)
+    // {
+    //     params_->Dump(fs,indent);
+    // }
     items_->Dump(fs,indent);
+    CurSymTab=SymTab_->pred_;
+}
+
+void Block::FuncBlockDump(basic_ostream<char>& fs, string indent, BaseAst* pt)
+{
+    SymTab_=new SymTab();
+    SymTab_->pred_=CurSymTab;
+    CurSymTab=SymTab_;
+
+    if (params_!=nullptr)
+    {
+        params_->FuncBlockDump(fs,indent,NULL);
+    }
+    pt->FuncBlockDump(fs,indent,NULL);
+    if (params_!=nullptr)
+    {
+        params_->ReAllocateFParams(fs,indent+"\t");
+    }
+    return_flag=false;
+    items_->Dump(fs,indent+"\t");
+    if (return_flag==false)
+        fs<<indent<<"\tret"<<endl;
     CurSymTab=SymTab_->pred_;
 }
 
@@ -239,19 +428,39 @@ void VarDef::Dump(basic_ostream<char>& fs, string indent, int dest)
 {
     CurSymTab->insert_var(ident_);
     int cur=CurSymTab->find(ident_).val_;
-    fs<<indent<<"@VAR_"<<cur<<" = alloc i32 //! w.r.t. symbol "<<ident_<<endl;
-    if (cur_derivation_==1)
+    if (global_var)
     {
-        if (initval_->IsConst())
+        switch (cur_derivation_)
         {
-            int val=initval_->CalcVal();
-            fs<<indent<<"store "<<val<<", @VAR_"<<cur<<endl;
+        case 0:
+            fs<<indent<<"global @VAR_"<<cur<<" = alloc i32, zeroinit //! w.r.t. symbol "<<ident_<<endl;
+            break;
+        
+        case 1:
+            fs<<indent<<"global @VAR_"<<cur<<" = alloc i32, "<<initval_->CalcVal()<<" //! w.r.t. symbol "<<ident_<<endl;
+            break;
+
+        default:
+            LOG_ERROR("@Vardef::Dump::global_var: unexpected cur_derivation=%d",cur_derivation_);
+            break;
         }
-        else
+    }
+    else
+    {
+        fs<<indent<<"@VAR_"<<cur<<" = alloc i32 //! w.r.t. symbol "<<ident_<<endl;
+        if (cur_derivation_==1)
         {
-            int temp=new_tempvar();
-            initval_->Dump(fs,indent,temp);
-            fs<<indent<<"store %"<<temp<<", @VAR_"<<cur<<endl;
+            if (initval_->IsConst())
+            {
+                int val=initval_->CalcVal();
+                fs<<indent<<"store "<<val<<", @VAR_"<<cur<<endl;
+            }
+            else
+            {
+                int temp=new_tempvar();
+                initval_->Dump(fs,indent,temp);
+                fs<<indent<<"store %"<<temp<<", @VAR_"<<cur<<endl;
+            }
         }
     }
 }
@@ -287,9 +496,14 @@ void Closed_If_Stmt::Print(string indent)
     switch (cur_derivation_)
     {
     case 0: // RETURN Exp ';'
-        cout<<curindent<<"Return {\n";
-        subexp1_->Print(curindent+"|\t");
-        cout<<curindent<<"}\n";
+        if (subexp1_!=nullptr)
+        {
+            cout<<curindent<<"Return {\n";
+            subexp1_->Print(curindent+"|\t");
+            cout<<curindent<<"}\n";
+        }
+        else
+            cout<<curindent<<"Return\n";
         break;
     
     case 1: // LVal EQ Exp ';'
@@ -346,9 +560,14 @@ void Closed_If_Stmt::Dump(basic_ostream<char>& fs, string indent, int dest)
     switch (cur_derivation_)
     {
     case 0: // RETURN Exp ';'
-        tpvar=new_tempvar();
-        subexp1_->Dump(fs,indent,tpvar);
-        fs<<indent<<"ret %"<<tpvar<<endl;
+        if (subexp1_!=nullptr)
+        {
+            tpvar=new_tempvar();
+            subexp1_->Dump(fs,indent,tpvar);
+            fs<<indent<<"ret %"<<tpvar<<endl;
+        }
+        else
+            fs<<indent<<"ret"<<endl;
         return_flag=true;
         break;
     
@@ -367,8 +586,7 @@ void Closed_If_Stmt::Dump(basic_ostream<char>& fs, string indent, int dest)
         break;
     
     case 3: // Exp ';'
-        tpvar=new_tempvar();
-        subexp1_->Dump(fs,indent,tpvar);
+        subexp1_->Dump(fs,indent); // i.e a stmt only contains an expression
         break;
     
     case 4: // Block
@@ -543,6 +761,8 @@ void Exp::Dump(basic_ostream<char>& fs, string indent, int dest)
 {
     if (IsConst())
     {
+        if (dest==-1)
+            dest=new_tempvar();
         fs<<indent<<"%"<<dest<<" = add 0, "<<CalcVal()<<endl;
         return;
     }
@@ -576,6 +796,8 @@ void LOrExp::Dump(basic_ostream<char>& fs, string indent, int dest)
 {
     if (IsConst())
     {
+        if (dest==-1)
+            dest=new_tempvar();
         fs<<indent<<"%"<<dest<<" = add 0, "<<CalcVal()<<endl;
         return;
     }
@@ -587,6 +809,8 @@ void LOrExp::Dump(basic_ostream<char>& fs, string indent, int dest)
         break;
 
     case 1: // LOrExp OR LAndExp
+        if (dest==-1)
+            dest=new_tempvar();
         tpalloc=new_tempvar();
         lhs=new_tempvar();
         tpl=new_tempvar();
@@ -661,6 +885,8 @@ void LAndExp::Dump(basic_ostream<char>& fs, string indent, int dest)
 {
     if (IsConst())
     {
+        if (dest==-1)
+            dest=new_tempvar();
         fs<<indent<<"%"<<dest<<" = add 0, "<<CalcVal()<<endl;
         return;
     }
@@ -672,6 +898,8 @@ void LAndExp::Dump(basic_ostream<char>& fs, string indent, int dest)
         break;
 
     case 1: // LAndExp AND EqExp
+        if (dest==-1)
+            dest=new_tempvar();
         tpalloc=new_tempvar();
         lhs=new_tempvar();
         tpl=new_tempvar();
@@ -752,6 +980,8 @@ void EqExp::Dump(basic_ostream<char>& fs, string indent, int dest)
 {
     if (IsConst())
     {
+        if (dest==-1)
+            dest=new_tempvar();
         fs<<indent<<"%"<<dest<<" = add 0, "<<CalcVal()<<endl;
         return;
     }
@@ -763,6 +993,8 @@ void EqExp::Dump(basic_ostream<char>& fs, string indent, int dest)
         break;
 
     case 1: // EqExp EQQ RelExp
+        if (dest==-1)
+            dest=new_tempvar();
         lhs=new_tempvar();
         rhs=new_tempvar();
         subexp1_->Dump(fs,indent,lhs);
@@ -771,6 +1003,8 @@ void EqExp::Dump(basic_ostream<char>& fs, string indent, int dest)
         break;
 
     case 2: // EqExp NEQ RelExp
+        if (dest==-1)
+            dest=new_tempvar();
         lhs=new_tempvar();
         rhs=new_tempvar();
         subexp1_->Dump(fs,indent,lhs);
@@ -848,6 +1082,8 @@ void RelExp::Dump(basic_ostream<char>& fs, string indent, int dest)
 {
     if (IsConst())
     {
+        if (dest==-1)
+            dest=new_tempvar();
         fs<<indent<<"%"<<dest<<" = add 0, "<<CalcVal()<<endl;
         return;
     }
@@ -859,6 +1095,8 @@ void RelExp::Dump(basic_ostream<char>& fs, string indent, int dest)
         break;
 
     case 1: // RelExp LT AddExp
+        if (dest==-1)
+            dest=new_tempvar();
         lhs=new_tempvar();
         rhs=new_tempvar();
         subexp1_->Dump(fs,indent,lhs);
@@ -867,6 +1105,8 @@ void RelExp::Dump(basic_ostream<char>& fs, string indent, int dest)
         break;
 
     case 2: // RelExp GT AddExp
+        if (dest==-1)
+            dest=new_tempvar();
         lhs=new_tempvar();
         rhs=new_tempvar();
         subexp1_->Dump(fs,indent,lhs);
@@ -875,6 +1115,8 @@ void RelExp::Dump(basic_ostream<char>& fs, string indent, int dest)
         break;
     
     case 3: // RelExp LEQ AddExp
+        if (dest==-1)
+            dest=new_tempvar();
         lhs=new_tempvar();
         rhs=new_tempvar();
         subexp1_->Dump(fs,indent,lhs);
@@ -883,6 +1125,8 @@ void RelExp::Dump(basic_ostream<char>& fs, string indent, int dest)
         break;
 
     case 4: // RelExp GEQ AddExp
+        if (dest==-1)
+            dest=new_tempvar();
         lhs=new_tempvar();
         rhs=new_tempvar();
         subexp1_->Dump(fs,indent,lhs);
@@ -954,6 +1198,8 @@ void AddExp::Dump(basic_ostream<char>& fs, string indent, int dest)
 {
     if (IsConst())
     {
+        if (dest==-1)
+            dest=new_tempvar();
         fs<<indent<<"%"<<dest<<" = add 0, "<<CalcVal()<<endl;
         return;
     }
@@ -965,6 +1211,8 @@ void AddExp::Dump(basic_ostream<char>& fs, string indent, int dest)
         break;
     
     case 1: // AddExp PLUS MulExp
+        if (dest==-1)
+            dest=new_tempvar();
         lhs=new_tempvar();
         rhs=new_tempvar();
         subexp1_->Dump(fs,indent,lhs);
@@ -973,6 +1221,8 @@ void AddExp::Dump(basic_ostream<char>& fs, string indent, int dest)
         break;
 
     case 2: // AddExp MINUS MulExp
+        if (dest==-1)
+            dest=new_tempvar();
         lhs=new_tempvar();
         rhs=new_tempvar();
         subexp1_->Dump(fs,indent,lhs);
@@ -1044,6 +1294,8 @@ void MulExp::Dump(basic_ostream<char>& fs, string indent, int dest)
 {
     if (IsConst())
     {
+        if (dest==-1)
+            dest=new_tempvar();
         fs<<indent<<"%"<<dest<<" = add 0, "<<CalcVal()<<endl;
         return;
     }
@@ -1055,6 +1307,8 @@ void MulExp::Dump(basic_ostream<char>& fs, string indent, int dest)
         break;
     
     case 1: // MulExp MULT UnaryExp
+        if (dest==-1)
+            dest=new_tempvar();
         lhs=new_tempvar();
         rhs=new_tempvar();
         subexp1_->Dump(fs,indent,lhs);
@@ -1063,6 +1317,8 @@ void MulExp::Dump(basic_ostream<char>& fs, string indent, int dest)
         break;
 
     case 2: // MulExp DIV UnaryExp
+        if (dest==-1)
+            dest=new_tempvar();
         lhs=new_tempvar();
         rhs=new_tempvar();
         subexp1_->Dump(fs,indent,lhs);
@@ -1071,6 +1327,8 @@ void MulExp::Dump(basic_ostream<char>& fs, string indent, int dest)
         break;
 
     case 3: // MulExp MOD UnaryExp
+        if (dest==-1)
+            dest=new_tempvar();
         lhs=new_tempvar();
         rhs=new_tempvar();
         subexp1_->Dump(fs,indent,lhs);
@@ -1127,6 +1385,9 @@ void UnaryExp::Print(string indent)
     case 3: // PrimaryExp
         break;
 
+    case 4: // IDENT '(' FuncRParams ')'
+        break;
+
     default:
         LOG_ERROR("@UnaryExp::print: Unrecognized cur_derivation_=%d",cur_derivation_);
         break;
@@ -1139,7 +1400,8 @@ void UnaryExp::Dump(basic_ostream<char>& fs, string indent, int dest)
 {
     if (IsConst())
     {
-        fs<<indent<<"%"<<dest<<" = add 0, "<<CalcVal()<<endl;
+        if (dest!=-1)
+            fs<<indent<<"%"<<dest<<" = add 0, "<<CalcVal()<<endl;
         return;
     }
     int tpvar;
@@ -1152,17 +1414,29 @@ void UnaryExp::Dump(basic_ostream<char>& fs, string indent, int dest)
     case 1: // MINUS UnaryExp
         tpvar=new_tempvar();
         subexp_->Dump(fs,indent,tpvar);
-        fs<<indent<<"%"<<dest<<" = sub 0, %"<<tpvar<<endl;
+        if (dest!=-1)
+            fs<<indent<<"%"<<dest<<" = sub 0, %"<<tpvar<<endl;
         break;
 
     case 2: // NOT UnaryExp
         tpvar=new_tempvar();
         subexp_->Dump(fs,indent,tpvar);
-        fs<<indent<<"%"<<dest<<" = eq 0, %"<<tpvar<<endl;
+        if (dest!=-1)
+            fs<<indent<<"%"<<dest<<" = eq 0, %"<<tpvar<<endl;
         break;
     
     case 3: // PrimaryExp
         subexp_->Dump(fs,indent,dest);
+        break;
+
+    case 4: // IDENT '(' FuncRParams ')'
+        subexp_->FuncBlockDump(fs,indent,NULL);
+        if (dest!=-1)
+            fs<<indent<<"%"<<dest<<" = call @"<<ident_<<"(";
+        else
+            fs<<indent<<"call @"<<ident_<<"(";
+        subexp_->Dump(fs,"");
+        fs<<")"<<endl;
         break;
 
     default:
@@ -1205,10 +1479,25 @@ void PrimaryExp::Dump(basic_ostream<char>& fs, string indent, int dest)
 {
     if (IsConst())
     {
-        fs<<indent<<"%"<<dest<<" = add 0, "<<CalcVal()<<endl;
+        if (dest!=-1)
+            fs<<indent<<"%"<<dest<<" = add 0, "<<CalcVal()<<endl;
         return;
     }
-    subexp_->Dump(fs,indent,dest);
+    switch (cur_derivation_)
+    {
+    case 0: // '(' Exp ')'
+        subexp_->Dump(fs,indent,dest);
+        break;
+    
+    case 1: // Number
+    case 2: // LVal
+        if (dest!=-1)
+            subexp_->Dump(fs,indent,dest);
+        break;
+    
+    default:
+        break;
+    }
 }
 
 int PrimaryExp::CalcVal()

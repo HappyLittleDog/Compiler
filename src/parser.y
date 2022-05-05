@@ -21,34 +21,108 @@ void yyerror(std::unique_ptr<BaseAst> &ast, const char *s);
     std::string* str_val;
     BaseAst* ast_val;
 }
-%token INT RETURN PLUS MINUS MULT DIV MOD EQQ NEQ LT GT LEQ GEQ NOT AND OR EQ CONST IF ELSE WHILE BREAK CONTINUE
+%token INT RETURN PLUS MINUS MULT DIV MOD EQQ NEQ LT GT LEQ GEQ NOT AND OR EQ CONST IF ELSE WHILE BREAK CONTINUE VOID
 %token <str_val> IDENT
 %token <int_val> INT_CONST
-%type <ast_val> FuncDef FuncType Block Stmt Exp PrimaryExp UnaryExp AddExp MulExp RelExp EqExp LAndExp LOrExp Number Decl ConstDecl BType ConstDefs ConstDef ConstInitVal BlockItems BlockItem LVal ConstExp VarDecl VarDefs VarDef InitVal Open_If_Stmt Closed_If_Stmt
+%type <int_val> BType
+%type <ast_val> CompUnits CompUnit FuncDef Block Stmt Exp PrimaryExp UnaryExp AddExp MulExp RelExp EqExp LAndExp LOrExp Number Decl ConstDecl ConstDefs ConstDef ConstInitVal BlockItems BlockItem LVal ConstExp VarDecl VarDefs VarDef InitVal Open_If_Stmt Closed_If_Stmt FuncFParams FuncFParam FuncRParams
 %%
-CompUnit
-    :   FuncDef 
+Program
+    :   CompUnits
         {
             ast=unique_ptr<BaseAst>($1);
         }
     ;
 
-FuncDef
-    :   FuncType IDENT '(' ')' Block
+CompUnits
+    :   
         {
-            auto cur=new FuncDef();
-            cur->functype_=unique_ptr<BaseAst>($1);
-            cur->ident_=*unique_ptr<string>($2);
-            cur->block_=unique_ptr<BaseAst>($5);
+            auto cur=new CompUnits();
+            $$=cur;
+        }
+    |   CompUnits CompUnit
+        {
+            auto cur=reinterpret_cast<CompUnits*>($1);
+            cur->items_.push_back(unique_ptr<BaseAst>($2));
             $$=cur;
         }
     ;
 
-FuncType
-    :   INT
+CompUnit
+    :   FuncDef
         {
-            auto cur=new FuncType();
-            cur->rettype_=DataType::INT;
+            auto cur=new CompUnit();
+            cur->item_=unique_ptr<BaseAst>($1);
+            $$=cur;
+        }
+    |   Decl
+        {
+            auto cur=new CompUnit();
+            cur->item_=unique_ptr<BaseAst>($1);
+            $$=cur;
+        }
+    ;
+
+FuncDef
+    :   BType IDENT '(' FuncFParams ')' Block
+        {
+            auto cur=new FuncDef();
+            cur->functype_=int($1);
+            cur->ident_=*unique_ptr<string>($2);
+            cur->params_=shared_ptr<BaseAst>($4);
+            auto blk=reinterpret_cast<Block*>($6);
+            blk->params_=cur->params_;
+            cur->block_=unique_ptr<BaseAst>(blk);
+            $$=cur;
+        }
+    ;
+
+FuncFParams
+    :
+        {
+            auto cur=new FuncFParams();
+            $$=cur;
+        }
+    |   FuncFParam
+        {
+            auto cur=new FuncFParams();
+            cur->params_.push_back(unique_ptr<BaseAst>($1));
+            $$=cur;
+        }
+    |   FuncFParams ',' FuncFParam
+        {
+            auto cur=reinterpret_cast<FuncFParams*>($1);
+            cur->params_.push_back(unique_ptr<BaseAst>($3));
+            $$=cur;
+        }
+    ;
+
+FuncFParam
+    :   BType IDENT
+        {
+            auto cur=new FuncFParam();
+            cur->type_=int($1);
+            cur->ident_ = *($2);
+            $$=cur;
+        }
+    ;
+
+FuncRParams
+    :   
+        {
+            auto cur=new FuncRParams();
+            $$=cur;
+        }
+    |   Exp
+        {
+            auto cur=new FuncRParams();
+            cur->params_.push_back(unique_ptr<BaseAst>($1));
+            $$=cur;
+        }
+    |   FuncRParams ',' Exp
+        {
+            auto cur=reinterpret_cast<FuncRParams*>($1);
+            cur->params_.push_back(unique_ptr<BaseAst>($3));
             $$=cur;
         }
     ;
@@ -112,6 +186,7 @@ ConstDecl
 	:	CONST BType ConstDefs ';'
 		{
             auto cur=new ConstDecl();
+            cur->type_=int($2);
             cur->item_=unique_ptr<BaseAst>($3);
             $$=cur;
 		}
@@ -121,13 +196,21 @@ VarDecl
     :   BType VarDefs ';'
         {
             auto cur=new VarDecl();
+            cur->type_=int($1);
             cur->item_=unique_ptr<BaseAst>($2);
             $$=cur;
         }
     ;
 
 BType
-	:	INT {;}
+    :   VOID
+        {
+            $$=0;
+        }
+	|	INT 
+        {
+            $$=1;
+        }
 	;
 
 ConstDefs
@@ -242,6 +325,12 @@ Closed_If_Stmt
             auto cur=new Closed_If_Stmt();
             cur->cur_derivation_=0;
             cur->subexp1_=unique_ptr<BaseAst>($2);
+            $$=cur;
+        }
+    |   RETURN ';'
+        {
+            auto cur=new Closed_If_Stmt();
+            cur->cur_derivation_=0;
             $$=cur;
         }
     |   LVal EQ Exp ';'
@@ -553,6 +642,15 @@ UnaryExp
             cur->cur_derivation_=3;
             cur->subexp_=unique_ptr<BaseAst>($1);
             // cur->isconst_=cur->subexp_->IsConst();
+            $$=cur;
+        }
+    |   IDENT '(' FuncRParams ')'
+        {
+            auto cur=new UnaryExp();
+            cur->cur_derivation_=4;
+            cur->isconst_=0;
+            cur->ident_ = *($1);
+            cur->subexp_=unique_ptr<BaseAst>($3);
             $$=cur;
         }
     ;
