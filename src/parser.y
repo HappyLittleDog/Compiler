@@ -370,7 +370,7 @@ Closed_If_Stmt
             cur->subexp3_=unique_ptr<BaseAst>($7);
             $$=cur;
         }
-    |   WHILE '(' Exp ')' Stmt
+    |   WHILE '(' Exp ')' Closed_If_Stmt
         {
             auto cur=new Closed_If_Stmt();
             cur->cur_derivation_=6;
@@ -408,6 +408,14 @@ Open_If_Stmt
             cur->subexp1_=unique_ptr<BaseAst>($3);
             cur->subexp2_=unique_ptr<BaseAst>($5);
             cur->subexp3_=unique_ptr<BaseAst>($7);
+            $$=cur;
+        }
+    |   WHILE '(' Exp ')' Open_If_Stmt
+        {
+            auto cur=new Open_If_Stmt();
+            cur->cur_derivation_=2;
+            cur->subexp1_=unique_ptr<BaseAst>($3);
+            cur->subexp2_=unique_ptr<BaseAst>($5);
             $$=cur;
         }
     ;
