@@ -48,7 +48,7 @@ int main(int argc, const char *argv[]) {
             LOG_ERROR("can not open output file %s", output);
             exit(-1);
         }
-        ast->Print();
+        // ast->Print();
         ast->Dump(fs);
         fs.close();
     }

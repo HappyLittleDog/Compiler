@@ -64,6 +64,12 @@ void VisitCall(const koopa_raw_value_t &val, Register_Allocator *ra, Stack_Alloc
 
 void VisitGlobalVar(const koopa_raw_value_t &val, Register_Allocator *ra, Stack_Allocator *sa);
 
+void VisitGetElemPtr(const koopa_raw_value_t &val, Register_Allocator *ra, Stack_Allocator *sa);
+
+void VisitAlloc(const koopa_raw_value_t &val, Register_Allocator *ra, Stack_Allocator *sa);
+
+void VisitGetPtr(const koopa_raw_value_t &val, Register_Allocator *ra, Stack_Allocator *sa);
+
 void Visit(const koopa_raw_integer_t &integer, string dest_register);
 
 ///
@@ -75,3 +81,5 @@ void Scan(const koopa_raw_slice_t &slice, Stack_Allocator *sa);
 void Scan(const koopa_raw_basic_block_t &bb, Stack_Allocator *sa);
 
 void Scan(const koopa_raw_value_t &val, Stack_Allocator *sa);
+
+int CalcSize(const koopa_raw_type_t &ty); // calculate the total size of a given type

@@ -139,6 +139,19 @@ public:
 			LOG_ERROR("@Stack_Allocator::insert: insert %p failed!", addr);
 		}
 	}
+	void allocate_ptr(const void* addr)
+	{
+		auto val=reinterpret_cast<koopa_raw_value_t>(addr);
+		int cursz=CalcSize(val->ty->data.pointer.base);
+		LOG_DEBUG("@SA::allocate_ptr: cur size=%d",cursz);
+		size+=cursz;
+		size+=4; // used to store the ptr (i.e. addr)
+		auto it=nt.insert(make_pair(addr, size));
+		if (!it.second)
+		{
+			LOG_ERROR("@Stack_Allocator::insert: insert %p failed!", addr);
+		}
+	}
 
 	/**
 	 * @brief Return the position of the corresponding item
@@ -233,8 +246,11 @@ void Visit(const koopa_raw_function_t &func)
 		Stack_Allocator sa;
 
 		Scan(func->bbs, &sa);
-		asms<<"\taddi sp, sp, -"<<sa.total_size()<<endl;
-		asms<<"\tsw ra, "<<sa.total_size()-4<<"(sp)"<<endl;
+		asms<<"\tli t0, "<<sa.total_size()<<endl;
+		asms<<"\tsub sp, sp, t0"<<endl;
+		asms<<"\tli t0, "<<sa.total_size()-4<<endl;
+		asms<<"\tadd t0, t0, sp"<<endl;
+		asms<<"\tsw ra, 0(t0)"<<endl;
 		// 访问所有基本块
 		Visit(func->bbs, &ra, &sa);
 		asms<<endl;
@@ -278,6 +294,7 @@ void Visit(const koopa_raw_value_t &value, Register_Allocator *ra, Stack_Allocat
 		break;
 	case KOOPA_RVT_ALLOC:
 		// Nothing to do here
+		VisitAlloc(value, ra, sa);
 		break;
 	case KOOPA_RVT_LOAD:
 		VisitLoad(value, ra, sa);
@@ -296,6 +313,13 @@ void Visit(const koopa_raw_value_t &value, Register_Allocator *ra, Stack_Allocat
 		break;
 	case KOOPA_RVT_GLOBAL_ALLOC:
 		VisitGlobalVar(value,ra,sa);
+		break;
+	case KOOPA_RVT_GET_ELEM_PTR:
+		VisitGetElemPtr(value,ra,sa);
+		break;
+	
+	case KOOPA_RVT_GET_PTR:
+		VisitGetPtr(value, ra, sa);
 		break;
 
 	default:
@@ -341,9 +365,14 @@ void VisitRet(const koopa_raw_return_t &ret, Register_Allocator *ra, Stack_Alloc
 			break;
 		}
 	}
-	asms<<"\tlw ra, "<<sa->total_size()-4<<"(sp)"<<endl;
-	asms<<"\taddi sp, sp, "<<sa->total_size()<<endl;
+	string addr=ra->allocate_temp();
+	asms<<"\tli "<<addr<<", "<<sa->total_size()-4<<endl;
+	asms<<"\tadd "<<addr<<", "<<addr<<", sp"<<endl;
+	asms<<"\tlw ra"<<", 0("<<addr<<")"<<endl;
+	asms<<"\tli "<<addr<<", "<<sa->total_size()<<endl;
+	asms<<"\tadd sp, sp, "<<addr<<endl;
 	asms << "\tret\n";
+	ra->free_temp(addr);
 }
 
 // binary operation
@@ -945,91 +974,140 @@ void VisitBin(const koopa_raw_value_t &val, Register_Allocator *ra, Stack_Alloca
 		LOG_ERROR("@VisitBin: Unsupported BinOP: %d", bin.op);
 		break;
 	}
-	asms<<"\tsw "<<dest<<", "<<sa->get_pos((const void*)val)<<"(sp)"<<endl;
+	if (sa->get_pos((const void*)val)<2048)
+		asms<<"\tsw "<<dest<<", "<<sa->get_pos((const void*)val)<<"(sp)"<<endl;
+	else
+	{
+		string addr=ra->allocate_temp();
+		asms<<"\tli "<<addr<<", "<<sa->get_pos((const void*)val)<<endl;
+		asms<<"\tadd "<<addr<<", "<<addr<<", sp"<<endl;
+		asms<<"\tsw "<<dest<<", 0("<<addr<<")"<<endl;
+		ra->free_temp(addr);
+	}
 	ra->free_temp(dest);
 }
 
 void VisitLoad(const koopa_raw_value_t &val, Register_Allocator *ra, Stack_Allocator *sa)
 {
-	if (val->kind.data.load.src->kind.tag==KOOPA_RVT_GLOBAL_ALLOC)
+	string tpreg;
+
+	// front end: load the value to tpreg
+	switch (val->kind.data.load.src->kind.tag)
 	{
-		string tpreg=ra->allocate_temp();
+	case KOOPA_RVT_GLOBAL_ALLOC:
+		tpreg=ra->allocate_temp();
 		asms<<"\tla "<<tpreg<<", "<<&(val->kind.data.load.src->name[1])<<endl;
 		asms<<"\tlw "<<tpreg<<", 0("<<tpreg<<")"<<endl;
-		asms<<"\tsw "<<tpreg<<", "<<sa->get_pos((const void*)val)<<"(sp)"<<endl;
-		ra->free_temp(tpreg);
+		break;
+
+	case KOOPA_RVT_ALLOC:
+		tpreg=ImplicitLoad(val->kind.data.load.src, ra, sa);
+		asms<<"\tlw "<<tpreg<<", 0("<<tpreg<<")"<<endl;
+		break;
+
+	case KOOPA_RVT_GET_ELEM_PTR:
+		tpreg=ImplicitLoad(val->kind.data.load.src, ra, sa);
+		asms<<"\tlw "<<tpreg<<", 0("<<tpreg<<")"<<endl;
+		break;
+
+	case KOOPA_RVT_GET_PTR:
+		tpreg=ImplicitLoad(val->kind.data.load.src, ra, sa);
+		asms<<"\tlw "<<tpreg<<", 0("<<tpreg<<")"<<endl;
+		break;
+
+	default:
+		LOG_ERROR("@VisitLoad::front end: unexpected src.kind.tag=%d",val->kind.data.load.src->kind.tag);
+		break;
 	}
+	if (sa->get_pos((const void*)val)<2048)
+		asms<<"\tsw "<<tpreg<<", "<<sa->get_pos((const void*)val)<<"(sp)"<<endl;
 	else
 	{
-		string tpreg=ImplicitLoad(val->kind.data.load.src, ra, sa);
-		asms<<"\tsw "<<tpreg<<", "<<sa->get_pos((const void*)val)<<"(sp)"<<endl;
-		ra->free_temp(tpreg);
+		string addr=ra->allocate_temp();
+		asms<<"\tli "<<addr<<", "<<sa->get_pos((const void*)val)<<endl;
+		asms<<"\tadd "<<addr<<", "<<addr<<", sp"<<endl;
+		asms<<"\tsw "<<tpreg<<", 0("<<addr<<")"<<endl;
+		ra->free_temp(addr);
 	}
+	ra->free_temp(tpreg);
 }
 
 string ImplicitLoad(const koopa_raw_value_t &val, Register_Allocator *ra, Stack_Allocator *sa)
 {
 	string tpreg=ra->allocate_temp();
 	assert(tpreg!="");
-	asms<<"\tlw "<<tpreg<<", "<<sa->get_pos((const void*)val)<<"(sp)"<<endl;
+	if (sa->get_pos(val)<2048)
+		asms<<"\tlw "<<tpreg<<", "<<sa->get_pos((const void*)val)<<"(sp)"<<endl;
+	else
+	{
+		asms<<"\tli "<<tpreg<<", "<<sa->get_pos((const void*)val)<<endl;
+		asms<<"\tadd "<<tpreg<<", "<<tpreg<<", sp"<<endl;
+		asms<<"\tlw "<<tpreg<<", 0("<<tpreg<<")"<<endl;
+	}
 	return tpreg;
 }
 
 void VisitStore(const koopa_raw_value_t &val, Register_Allocator *ra, Stack_Allocator *sa)
 {
 	string tpreg, tpaddr;
+
+	// front end, put the value in register tpreg
 	switch (val->kind.data.store.value->kind.tag)
 	{
 	case KOOPA_RVT_INTEGER:
-		if (val->kind.data.store.dest->kind.tag==KOOPA_RVT_GLOBAL_ALLOC)
-		{
-			tpreg=ra->allocate_temp();
-			tpaddr=ra->allocate_temp();
-			asms<<"\tli "<<tpreg<<", "<<val->kind.data.store.value->kind.data.integer.value<<endl;
-			asms<<"\tla "<<tpaddr<<", "<<&(val->kind.data.store.dest->name[1])<<endl;
-			asms<<"\tsw "<<tpreg<<", 0("<<tpaddr<<")"<<endl;
-			ra->free_temp(tpaddr);
-			ra->free_temp(tpreg);
-		}
+		tpreg=ra->allocate_temp();
+		asms<<"\tli "<<tpreg<<", "<<val->kind.data.store.value->kind.data.integer.value<<endl;
+		break;
+
+	case KOOPA_RVT_FUNC_ARG_REF:
+		tpreg=ra->allocate_temp();
+		if (val->kind.data.store.value->kind.data.func_arg_ref.index<8)
+			asms<<"\tmv "<<tpreg<<", a"<<val->kind.data.store.value->kind.data.func_arg_ref.index<<endl;
 		else
 		{
-			tpreg=ra->allocate_temp();
-			asms<<"\tli "<<tpreg<<", "<<val->kind.data.store.value->kind.data.integer.value<<endl;
-			asms<<"\tsw "<<tpreg<<", "<<sa->get_pos((const void*)val->kind.data.store.dest)<<"(sp)"<<endl;
-			ra->free_temp(tpreg);
+			asms<<"\tli "<<tpreg<<", "<<4*(val->kind.data.store.value->kind.data.func_arg_ref.index-8)+sa->total_size()<<endl;
+			asms<<"\tadd "<<tpreg<<", "<<tpreg<<", sp"<<endl;
+			asms<<"\tlw "<<tpreg<<", 0("<<tpreg<<")"<<endl;
 		}
 		break;
 	
-	case KOOPA_RVT_FUNC_ARG_REF:
-		if (val->kind.data.store.value->kind.data.func_arg_ref.index<8)
-			asms<<"\tsw a"<<val->kind.data.store.value->kind.data.func_arg_ref.index<<", "<<sa->get_pos((const void*)val->kind.data.store.dest)<<"(sp)"<<endl;
-		else
-		{
-			tpreg=ra->allocate_temp();
-			asms<<"\tlw "<<tpreg<<", "<<4*(val->kind.data.store.value->kind.data.func_arg_ref.index-8)+sa->total_size()<<"(sp)"<<endl;
-			asms<<"\tsw "<<tpreg<<", "<<sa->get_pos((const void*)val->kind.data.store.dest)<<"(sp)"<<endl;
-			ra->free_temp(tpreg);
-		}
+	default:
+		tpreg=ImplicitLoad(val->kind.data.store.value, ra, sa);
+		break;
+	}
+
+	// back end, put the val in tpreg to dest
+	switch (val->kind.data.store.dest->kind.tag)
+	{
+	case KOOPA_RVT_GLOBAL_ALLOC:
+		tpaddr=ra->allocate_temp();
+		asms<<"\tla "<<tpaddr<<", "<<&(val->kind.data.store.dest->name[1])<<endl;
+		asms<<"\tsw "<<tpreg<<", 0("<<tpaddr<<")"<<endl;
+		ra->free_temp(tpaddr);
+		break;
+	
+	case KOOPA_RVT_ALLOC:
+		tpaddr=ra->allocate_temp();
+		asms<<"\tli "<<tpaddr<<", "<<sa->get_pos((const void*)val->kind.data.store.dest)<<endl;
+		asms<<"\tadd "<<tpaddr<<", "<<tpaddr<<", sp"<<endl;
+		asms<<"\tlw "<<tpaddr<<", 0("<<tpaddr<<")"<<endl;
+		asms<<"\tsw "<<tpreg<<", 0("<<tpaddr<<")"<<endl;
+		ra->free_temp(tpaddr);
+		// asms<<"\tsw "<<tpreg<<", "<<sa->get_pos((const void*)val->kind.data.store.dest)<<"(sp)"<<endl;
+		break;
+
+	case KOOPA_RVT_GET_ELEM_PTR:
+	case KOOPA_RVT_GET_PTR:
+		tpaddr=ImplicitLoad(val->kind.data.store.dest,ra,sa);
+		asms<<"\tsw "<<tpreg<<", 0("<<tpaddr<<")"<<endl;
+		ra->free_temp(tpaddr);
 		break;
 
 	default:
-		if (val->kind.data.store.dest->kind.tag==KOOPA_RVT_GLOBAL_ALLOC)
-		{
-			tpreg=ImplicitLoad(val->kind.data.store.value, ra, sa);
-			tpaddr=ra->allocate_temp();
-			asms<<"\tla "<<tpaddr<<", "<<&(val->kind.data.store.dest->name[1])<<endl;
-			asms<<"\tsw "<<tpreg<<", 0("<<tpaddr<<")"<<endl;
-			ra->free_temp(tpaddr);
-			ra->free_temp(tpreg);
-		}
-		else
-		{
-			tpreg=ImplicitLoad(val->kind.data.store.value, ra, sa);
-			asms<<"\tsw "<<tpreg<<", "<<sa->get_pos((const void*)val->kind.data.store.dest)<<"(sp)"<<endl;
-			ra->free_temp(tpreg);
-		}	
+		LOG_ERROR("@VisitStore::back end: unexpected dest.kind.tag=%d",int(val->kind.data.store.dest->kind.tag));
 		break;
 	}
+	ra->free_temp(tpreg);
 }
 
 void VisitBranch(const koopa_raw_value_t &val, Register_Allocator *ra, Stack_Allocator *sa)
@@ -1063,7 +1141,16 @@ void VisitCall(const koopa_raw_value_t &val, Register_Allocator *ra, Stack_Alloc
 			}
 			else
 			{
-				asms<<"\tlw a"<<i<<", "<<sa->get_pos(cur)<<"(sp)"<<endl;
+				if (sa->get_pos(cur)<2048)
+					asms<<"\tlw a"<<i<<", "<<sa->get_pos(cur)<<"(sp)"<<endl;
+				else
+				{
+					string addr=ra->allocate_temp();
+					asms<<"\tli "<<addr<<", "<<sa->get_pos(cur)<<endl;
+					asms<<"\tadd "<<addr<<", "<<addr<<", sp"<<endl;
+					asms<<"\tlw a"<<i<<", 0("<<addr<<")"<<endl;
+					ra->free_temp(addr);
+				}
 			}
 		}
 	}
@@ -1078,7 +1165,16 @@ void VisitCall(const koopa_raw_value_t &val, Register_Allocator *ra, Stack_Alloc
 			}
 			else
 			{
-				asms<<"\tlw a"<<i<<", "<<sa->get_pos(cur)<<"(sp)"<<endl;
+				if (sa->get_pos(cur)<2048)
+					asms<<"\tlw a"<<i<<", "<<sa->get_pos(cur)<<"(sp)"<<endl;
+				else
+				{
+					string addr=ra->allocate_temp();
+					asms<<"\tli "<<addr<<", "<<sa->get_pos(cur)<<endl;
+					asms<<"\tadd "<<addr<<", "<<addr<<", sp"<<endl;
+					asms<<"\tlw a"<<i<<", 0("<<addr<<")"<<endl;
+					ra->free_temp(addr);
+				}
 			}
 		}
 		int extrasize=4*(args.len-8);
@@ -1096,7 +1192,16 @@ void VisitCall(const koopa_raw_value_t &val, Register_Allocator *ra, Stack_Alloc
 			}
 			else
 			{
-				asms<<"\tlw "<<tpreg<<", "<<sa->get_pos(cur)<<"(sp)"<<endl;
+				if (sa->get_pos(cur)<2048)
+					asms<<"\tlw "<<tpreg<<", "<<sa->get_pos(cur)<<"(sp)"<<endl;
+				else
+				{
+					string addr=ra->allocate_temp();
+					asms<<"\tli "<<addr<<", "<<sa->get_pos(cur)<<endl;
+					asms<<"\tadd "<<addr<<", "<<addr<<", sp"<<endl;
+					asms<<"\tlw "<<tpreg<<", 0("<<addr<<")"<<endl;
+					ra->free_temp(addr);
+				}
 				asms<<"\tsw "<<tpreg<<", "<<4*(i-8)<<"(sp)"<<endl;
 			}
 		}
@@ -1112,7 +1217,16 @@ void VisitCall(const koopa_raw_value_t &val, Register_Allocator *ra, Stack_Alloc
 	switch (val->ty->tag)
 	{
 	case KOOPA_RTT_INT32:
-		asms<<"\tsw a0, "<<sa->get_pos(val)<<"(sp)"<<endl;
+		if (sa->get_pos(val)<2048)
+			asms<<"\tsw a0, "<<sa->get_pos(val)<<"(sp)"<<endl;
+		else
+		{
+			string addr=ra->allocate_temp();
+			asms<<"\tli "<<addr<<", "<<sa->get_pos((const void*)val)<<endl;
+			asms<<"\tadd "<<addr<<", "<<addr<<", sp"<<endl;
+			asms<<"\tsw a0, 0("<<addr<<")"<<endl;
+			ra->free_temp(addr);
+		}
 		break;
 	 case KOOPA_RTT_UNIT:
 	 	break;
@@ -1122,25 +1236,168 @@ void VisitCall(const koopa_raw_value_t &val, Register_Allocator *ra, Stack_Alloc
 	}
 }
 
+deque<int> FlattenAggragate(const koopa_raw_value_t& val)
+{
+	deque<int> tp;
+	int len=val->kind.data.aggregate.elems.len;
+	for (int i=0;i<len;i++)
+	{
+		auto cur=reinterpret_cast<koopa_raw_value_t>(val->kind.data.aggregate.elems.buffer[i]);
+		if (cur->kind.tag==KOOPA_RVT_INTEGER)
+			tp.push_back(cur->kind.data.integer.value);
+		else if (cur->kind.tag==KOOPA_RVT_AGGREGATE)
+		{
+			auto tpv=FlattenAggragate(cur);
+			tp.insert(tp.end(),tpv.begin(),tpv.end());
+		}
+		else
+		{
+			LOG_ERROR("@FlattenAggragate: unexpected cur.kind.tag=%d",cur->kind.tag);
+			break;
+		}
+	}
+	return tp;
+}
+
 void VisitGlobalVar(const koopa_raw_value_t &val, Register_Allocator *ra, Stack_Allocator *sa)
 {
 	asms<<"\t.globl "<<&(val->name[1])<<endl;
 	asms<<&(val->name[1])<<":"<<endl;
 	auto initval=val->kind.data.global_alloc.init;
+	deque<int> items;
 	switch (initval->kind.tag)
 	{
 	case KOOPA_RVT_ZERO_INIT:
-		asms<<"\t.zero 4"<<endl;
+		asms<<"\t.zero "<<CalcSize(initval->ty)<<endl;
 		break;
 	
 	case KOOPA_RVT_INTEGER:
 		asms<<"\t.word "<<initval->kind.data.integer.value<<endl;
 		break;
 	
+	case KOOPA_RVT_AGGREGATE:
+		items=FlattenAggragate(initval);
+		for (int i=0;i<items.size();i++)
+		{
+			asms<<"\t.word "<<items[i]<<endl;
+		}
+		break;
+	
 	default:
 		LOG_ERROR("@VisitGlobalVar: unexpected initval tag=%d",initval->kind.tag);
 		break;
 	}
+}
+
+void VisitGetElemPtr(const koopa_raw_value_t &val, Register_Allocator *ra, Stack_Allocator *sa)
+{
+	string tpreg;
+	if (val->kind.data.get_elem_ptr.index->kind.tag==KOOPA_RVT_INTEGER)
+	{
+		tpreg=ra->allocate_temp();
+		asms<<"\tli "<<tpreg<<", "<<val->kind.data.get_elem_ptr.index->kind.data.integer.value<<endl;
+	}
+	else
+	{
+		tpreg=ImplicitLoad(val->kind.data.get_elem_ptr.index,ra,sa);
+	}
+	int basesz=CalcSize(val->kind.data.get_elem_ptr.src->ty->data.pointer.base->data.array.base);
+	LOG_DEBUG("@VisitGetELemPtr: base type=%d, size=%d",int(val->kind.data.get_elem_ptr.src->ty->data.pointer.base->data.array.base->tag),basesz);
+	if (val->kind.data.get_elem_ptr.src->kind.tag==KOOPA_RVT_GLOBAL_ALLOC)
+	{
+		string tpsz=ra->allocate_temp();
+		asms<<"\tli "<<tpsz<<", "<<basesz<<endl;
+		asms<<"\tmul "<<tpreg<<", "<<tpsz<<", "<<tpreg<<endl;
+		asms<<"\tla "<<tpsz<<", "<<&val->kind.data.get_elem_ptr.src->name[1]<<endl;
+		asms<<"\tadd "<<tpreg<<", "<<tpsz<<", "<<tpreg<<endl;
+		ra->free_temp(tpsz);
+	}
+	else
+	{
+		string tpsz=ra->allocate_temp();
+		asms<<"\tli "<<tpsz<<", "<<basesz<<endl;
+		asms<<"\tmul "<<tpsz<<", "<<tpsz<<", "<<tpreg<<endl;
+		int offset=sa->get_pos(val->kind.data.get_elem_ptr.src);
+		asms<<"\tli "<<tpreg<<", "<<offset<<endl;
+		asms<<"\tadd "<<tpreg<<", "<<tpreg<<", sp"<<endl;
+		asms<<"\tlw "<<tpreg<<", 0("<<tpreg<<")"<<endl;
+		asms<<"\tadd "<<tpreg<<", "<<tpreg<<", "<<tpsz<<endl;
+		ra->free_temp(tpsz);
+	}
+
+	if (sa->get_pos(val)<2048)
+		asms<<"\tsw "<<tpreg<<", "<<sa->get_pos(val)<<"(sp)"<<endl;
+	else
+	{
+		string addr=ra->allocate_temp();
+		asms<<"\tli "<<addr<<", "<<sa->get_pos((const void*)val)<<endl;
+		asms<<"\tadd "<<addr<<", "<<addr<<", sp"<<endl;
+		asms<<"\tsw "<<tpreg<<", 0("<<addr<<")"<<endl;
+		ra->free_temp(addr);
+	}
+	ra->free_temp(tpreg);
+}
+
+void VisitGetPtr(const koopa_raw_value_t &val, Register_Allocator *ra, Stack_Allocator *sa)
+{
+	string tpreg;
+	if (val->kind.data.get_ptr.index->kind.tag==KOOPA_RVT_INTEGER)
+	{
+		tpreg=ra->allocate_temp();
+		asms<<"\tli "<<tpreg<<", "<<val->kind.data.get_ptr.index->kind.data.integer.value<<endl;
+	}
+	else
+	{
+		tpreg=ImplicitLoad(val->kind.data.get_ptr.index,ra,sa);
+	}
+	int basesz=CalcSize(val->kind.data.get_ptr.src->ty->data.pointer.base);
+	LOG_DEBUG("@VisitGetPtr: base type=%d, size=%d",int(val->kind.data.get_ptr.src->ty->data.pointer.base->tag),basesz);
+	// if (val->kind.data.get_ptr.src->kind.tag==KOOPA_RVT_GLOBAL_ALLOC)
+	// {
+	// 	string tpsz=ra->allocate_temp();
+	// 	asms<<"\tli "<<tpsz<<", "<<basesz<<endl;
+	// 	asms<<"\tmul "<<tpreg<<", "<<tpsz<<", "<<tpreg<<endl;
+	// 	asms<<"\tla "<<tpsz<<", "<<&val->kind.data.get_ptr.src->name[1]<<endl;
+	// 	asms<<"\tadd "<<tpreg<<", "<<tpsz<<", "<<tpreg<<endl;
+	// 	ra->free_temp(tpsz);
+	// }
+	// else
+	// {
+		string tpsz=ra->allocate_temp();
+		asms<<"\tli "<<tpsz<<", "<<basesz<<endl;
+		asms<<"\tmul "<<tpsz<<", "<<tpsz<<", "<<tpreg<<endl;
+		int offset=sa->get_pos(val->kind.data.get_ptr.src);
+		asms<<"\tli "<<tpreg<<", "<<offset<<endl;
+		asms<<"\tadd "<<tpreg<<", "<<tpreg<<", sp"<<endl;
+		asms<<"\tlw "<<tpreg<<", 0("<<tpreg<<")"<<endl;
+		asms<<"\tadd "<<tpreg<<", "<<tpreg<<", "<<tpsz<<endl;
+		ra->free_temp(tpsz);
+	// }
+
+	if (sa->get_pos(val)<2048)
+		asms<<"\tsw "<<tpreg<<", "<<sa->get_pos(val)<<"(sp)"<<endl;
+	else
+	{
+		string addr=ra->allocate_temp();
+		asms<<"\tli "<<addr<<", "<<sa->get_pos((const void*)val)<<endl;
+		asms<<"\tadd "<<addr<<", "<<addr<<", sp"<<endl;
+		asms<<"\tsw "<<tpreg<<", 0("<<addr<<")"<<endl;
+		ra->free_temp(addr);
+	}
+	ra->free_temp(tpreg);
+}
+
+void VisitAlloc(const koopa_raw_value_t &val, Register_Allocator *ra, Stack_Allocator *sa)
+{
+	int curpos=sa->get_pos(val);
+	string tpreg=ra->allocate_temp();
+	string addr=ra->allocate_temp();
+	asms<<"\tli "<<tpreg<<", "<<curpos<<endl;
+	asms<<"\tadd "<<tpreg<<", sp, "<<tpreg<<endl;
+	asms<<"\taddi "<<addr<<", "<<tpreg<<", 4"<<endl;
+	asms<<"\tsw "<<addr<<", 0("<<tpreg<<")"<<endl;
+	ra->free_temp(addr);
+	ra->free_temp(tpreg);
 }
 
 void Visit(const koopa_raw_integer_t &integer, string dest_register)
@@ -1183,6 +1440,7 @@ void Scan(const koopa_raw_basic_block_t &bb, Stack_Allocator *sa)
 
 void Scan(const koopa_raw_value_t &val, Stack_Allocator *sa)
 {
+	// if (val->kind.tag=KOOPA_RVT)
 	// allocate space for new-generated temp var
 	switch (val->ty->tag)
 	{
@@ -1192,11 +1450,46 @@ void Scan(const koopa_raw_value_t &val, Stack_Allocator *sa)
 	case KOOPA_RTT_UNIT:
 		break;
 	case KOOPA_RTT_POINTER:
-		sa->allocate(val);
+		switch (val->kind.tag)
+		{
+		case KOOPA_RVT_ALLOC:
+			sa->allocate_ptr(val);
+			break;
+		
+		case KOOPA_RVT_GET_ELEM_PTR:
+		case KOOPA_RVT_GET_PTR:
+		case KOOPA_RVT_LOAD:
+			sa->allocate(val);
+			break;
+
+		default:
+			LOG_ERROR("@scan(value): unexpected val->kind.tag=%d",val->kind.tag);
+			break;
+		}
 		break;
 	
 	default:
 		LOG_ERROR("@Scan_value: Unexpected type: raw_type_tag_t=%d",val->ty->tag);
 		break;
 	}
+}
+
+int CalcSize(const koopa_raw_type_t &ty)
+{
+	switch (ty->tag)
+	{
+	case KOOPA_RTT_INT32:
+		return 4;
+	
+	case KOOPA_RTT_ARRAY:
+		return ty->data.array.len * CalcSize(ty->data.array.base);
+	
+	case KOOPA_RTT_POINTER:
+		return 4;
+	
+	default:
+		LOG_ERROR("@CalcSize: unexpected ty->tag=%d",ty->tag);
+		break;
+	}
+	return 0;
 }

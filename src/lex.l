@@ -33,7 +33,9 @@ IDChar                  [0-9A-Za-z_]
 "while"                                                 {return WHILE;}
 "break"                                                 {return BREAK;}
 "continue"                                              {return CONTINUE;}
-[(){};,]                                                {return yytext[0];}
+[(){};,]                                            {return yytext[0];}
+"["                                                     {return '[';}
+"]"                                                     {return ']';}
 "+"                                                     {return PLUS;}
 "\-"                                                    {return MINUS;}
 "\*"                                                    {return MULT;}

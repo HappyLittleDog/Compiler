@@ -19,7 +19,7 @@ LDFLAGS :=
 LOGMODE :=
 
 # Debug flags
-DEBUG ?= 0
+DEBUG ?= 1
 ifeq ($(DEBUG), 0)
 CFLAGS += -g -O0
 CXXFLAGS += -g -O0
@@ -106,7 +106,7 @@ clean:
 # 0: koopa
 # 1: riscv
 TESTMODE := 1
-TESTFILENAME := global
+TESTFILENAME := mandelbrot
 TESTFLAG :=
 TESTOUTEXT :=
 ifeq ($(TESTMODE),0)
@@ -117,7 +117,7 @@ TESTFLAG = -riscv
 TESTOUTEXT = S
 endif
 
-.PHONY:test
+.PHONY: test koopa riscv
 test:
 	build/compiler $(TESTFLAG) test/$(TESTFILENAME).c -o test/$(TESTFILENAME).$(TESTOUTEXT)
 
@@ -132,5 +132,18 @@ riscv: test/$(TESTFILENAME).S
 	echo "Build $(TESTFILENAME) successfully!"
 	echo "Execute test/$(TESTFILENAME):"
 	qemu-riscv32-static test/$(TESTFILENAME)
+
+maze:
+	build/compiler -riscv test/maze.c -o test/maze.S
+	clang test/maze.S -c -o test/maze.o -target riscv32-unknown-linux-elf -march=rv32im -mabi=ilp32
+	ld.lld test/maze.o -L$$CDE_LIBRARY_PATH/riscv32 -lsysy -o test/maze
+	echo $RANDOM 4 | qemu-riscv32-static test/maze > test/maze.ppm
+
+mandelbrot:
+	build/compiler -riscv test/mandelbrot.c -o test/mandelbrot.S
+	clang test/mandelbrot.S -c -o test/mandelbrot.o -target riscv32-unknown-linux-elf -march=rv32im -mabi=ilp32
+	clang test/fp-math.c -c -o test/fp-math.o -target riscv32-unknown-linux-elf -march=rv32imf -mabi=ilp32
+	ld.lld test/mandelbrot.o test/fp-math.o -L$$CDE_LIBRARY_PATH/riscv32 -lsysy -o test/mandelbrot
+	echo 1049275610 1049280643 999820068 1000185140 500 1024 | qemu-riscv32-static test/mandelbrot > test/pic.ppm
 
 -include $(DEPS)

@@ -25,7 +25,7 @@ void yyerror(std::unique_ptr<BaseAst> &ast, const char *s);
 %token <str_val> IDENT
 %token <int_val> INT_CONST
 %type <int_val> BType
-%type <ast_val> CompUnits CompUnit FuncDef Block Stmt Exp PrimaryExp UnaryExp AddExp MulExp RelExp EqExp LAndExp LOrExp Number Decl ConstDecl ConstDefs ConstDef ConstInitVal BlockItems BlockItem LVal ConstExp VarDecl VarDefs VarDef InitVal Open_If_Stmt Closed_If_Stmt FuncFParams FuncFParam FuncRParams
+%type <ast_val> CompUnits CompUnit FuncDef Block Stmt Exp PrimaryExp UnaryExp AddExp MulExp RelExp EqExp LAndExp LOrExp Number Decl ConstDecl ConstDefs ConstDef ConstInitVal BlockItems BlockItem LVal ConstInitVals ConstExp VarDecl VarDefs VarDef InitVal InitVals Open_If_Stmt Closed_If_Stmt FuncFParams FuncFParam FuncRParams ArraySize ArrayIndex
 %%
 Program
     :   CompUnits
@@ -75,6 +75,15 @@ FuncDef
             cur->block_=unique_ptr<BaseAst>(blk);
             $$=cur;
         }
+    |   BType IDENT '(' FuncFParams ')' ';'
+        {
+            auto cur=new FuncDef();
+            cur->functype_=int($1);
+            cur->ident_=*unique_ptr<string>($2);
+            cur->params_=shared_ptr<BaseAst>($4);
+            cur->block_=nullptr;
+            $$=cur;
+        }
     ;
 
 FuncFParams
@@ -101,8 +110,18 @@ FuncFParam
     :   BType IDENT
         {
             auto cur=new FuncFParam();
+            cur->cur_derivation_=0;
             cur->type_=int($1);
             cur->ident_ = *($2);
+            $$=cur;
+        }
+    |   BType IDENT '[' ']' ArraySize
+        {
+            auto cur=new FuncFParam();
+            cur->cur_derivation_=1;
+            cur->type_=int($1);
+            cur->ident_ = *($2);
+            cur->size_=unique_ptr<BaseAst>($5);
             $$=cur;
         }
     ;
@@ -229,24 +248,67 @@ ConstDefs
 	;
 
 ConstDef
-	:	IDENT EQ ConstInitVal
+	:	IDENT ArraySize EQ ConstInitVal
 		{
             auto cur=new ConstDef();
             cur->ident_ = *($1);
-            cur->initval_=unique_ptr<BaseAst>($3);
+            cur->size_=unique_ptr<BaseAst>($2);
+            cur->initval_=unique_ptr<BaseAst>($4);
             // CurConstSymTab.insert(cur->ident_, cur->initval_->CalcVal());
             $$=cur;
 		}
 	;
 
+ArraySize
+    :
+        {
+            auto cur=new ArraySize();
+            $$=cur;
+        }
+    |   ArraySize '[' ConstExp ']'
+        {
+            auto cur=reinterpret_cast<ArraySize*>($1);
+            cur->size_.push_back(unique_ptr<BaseAst>($3));
+            $$=cur;
+        }
+    ;
+
 ConstInitVal
 	:	ConstExp
 		{
             auto cur=new ConstInitVal();
+            cur->cur_derivation_=0;
             cur->subexp_=unique_ptr<BaseAst>($1);
             $$=cur;
 		}
+    |   '{' ConstInitVals '}'
+        {
+            auto cur=new ConstInitVal();
+            cur->cur_derivation_=1;
+            cur->subexp_=unique_ptr<BaseAst>($2);
+            $$=cur;
+        }
 	;
+
+ConstInitVals
+    :   
+        {
+            auto cur=new ConstInitVals();
+            $$=cur;
+        }
+    |   ConstInitVal
+        {
+            auto cur=new ConstInitVals();
+            cur->exps_.push_back(unique_ptr<BaseAst>($1));
+            $$=cur;
+        }
+    |   ConstInitVals ',' ConstInitVal
+        {
+            auto cur=reinterpret_cast<ConstInitVals*>($1);
+            cur->exps_.push_back(unique_ptr<BaseAst>($3));
+            $$=cur;
+        }
+    ;
 
 ConstExp
 	:	Exp
@@ -273,20 +335,22 @@ VarDefs
     ;
 
 VarDef
-    :   IDENT
+    :   IDENT ArraySize
         {
             auto cur=new VarDef();
             cur->cur_derivation_=0;
             cur->ident_ = *($1);
+            cur->size_=unique_ptr<BaseAst>($2);
             // CurVarSymTab.insert(cur->ident_);
             $$=cur;
         }
-    |   IDENT EQ InitVal
+    |   IDENT ArraySize EQ InitVal
         {
             auto cur=new VarDef();
             cur->cur_derivation_=1;
             cur->ident_ = *($1);
-            cur->initval_=unique_ptr<BaseAst>($3);
+            cur->size_=unique_ptr<BaseAst>($2);
+            cur->initval_=unique_ptr<BaseAst>($4);
             // CurVarSymTab.insert(cur->ident_);
             $$=cur;
         }
@@ -295,9 +359,37 @@ VarDef
 InitVal
     :   Exp
         {
-            auto cur=new Exp();
+            auto cur=new InitVal();
+            cur->cur_derivation_=0;
             cur->subexp_=unique_ptr<BaseAst>($1);
             // cur->isconst_=cur->subexp_->IsConst();
+            $$=cur;
+        }
+    |   '{' InitVals '}'
+        {
+            auto cur=new InitVal();
+            cur->cur_derivation_=1;
+            cur->subexp_=unique_ptr<BaseAst>($2);
+            $$=cur;
+        }
+    ;
+
+InitVals
+    :
+        {
+            auto cur=new InitVals();
+            $$=cur;
+        }
+    |   InitVal
+        {
+            auto cur=new InitVals();
+            cur->exps_.push_back(unique_ptr<BaseAst>($1));
+            $$=cur;
+        }
+    |   InitVals ',' InitVal
+        {
+            auto cur=reinterpret_cast<InitVals*>($1);
+            cur->exps_.push_back(unique_ptr<BaseAst>($3));
             $$=cur;
         }
     ;
@@ -691,14 +783,29 @@ PrimaryExp
     ;
 
 LVal
-	:	IDENT
+	:	IDENT ArrayIndex
 		{
             auto cur=new LVal();
             cur->ident_ = *($1);
+            cur->ndx_=unique_ptr<BaseAst>($2);
             // cur->isconst_=CurConstSymTab.exists(cur->ident_);
             $$=cur;
 		}
 	;
+
+ArrayIndex
+    :
+        {
+            auto cur=new ArrayIndex();
+            $$=cur;
+        }
+    |   ArrayIndex '[' Exp ']'
+        {
+            auto cur=reinterpret_cast<ArrayIndex*>($1);
+            cur->ndx_.push_back(unique_ptr<BaseAst>($3));
+            $$=cur;
+        }
+    ;
 
 Number
     :   INT_CONST

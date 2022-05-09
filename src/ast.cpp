@@ -28,6 +28,204 @@ int cur_while_exp=-1;
 int cur_while_end=-1;
 bool global_var=false;
 
+template <typename T>
+deque<int> InitConstArray(deque<int> size, T* initval, int& cur)
+{
+    if (size.size()==1)
+    {
+        int len=size[0];
+        if (cur==initval->exps_.size())
+        {
+            deque<int> tp;
+            for (int i=0;i<len;i++)
+                tp.push_back(0);
+            return tp;
+        }
+        else if (initval->exps_[cur]->GetDerivation()==0)
+        {
+            // single val without braces
+            deque<int> tp;
+            for (int i=0;i<len;i++)
+            {
+                if (cur==initval->exps_.size())
+                    break;
+                tp.push_back(initval->exps_[cur]->CalcVal());
+                cur++;
+            }
+            // assert(tp.size()==len);
+            while (tp.size()<len)
+                tp.push_back(0);
+            return tp;
+        }
+        else
+        {
+            deque<int> tp=initval->exps_[cur]->GetConstInitVals();
+            while (tp.size()<len)
+                tp.push_back(0);
+            cur++;
+            return tp;
+        }
+    }
+    else
+    {
+        int len=size[0];
+        size.pop_front();
+        deque<int> rst;
+        for (int i=0;i<len;i++)
+        {
+            deque<int> tp=InitConstArray(size,initval,cur);
+            rst.insert(rst.end(),tp.begin(),tp.end());
+        }
+        return rst;
+    }
+}
+
+deque<int> InitVarArray(basic_ostream<char>& fs, deque<int> size, InitVals* initval, int& cur)
+{
+    if (size.size()==1)
+    {
+        int len=size[0];
+        if (cur==initval->exps_.size())
+        {
+            deque<int> tp;
+            for (int i=0;i<len;i++)
+                tp.push_back(0);
+            return tp;
+        }
+        else if (initval->exps_[cur]->GetDerivation()==0)
+        {
+            // single exp without braces
+            deque<int> tp;
+            for (int i=0;i<len;i++)
+            {
+                if (cur==initval->exps_.size())
+                    break;
+                tp.push_back(new_tempvar());
+                initval->exps_[cur]->Dump(fs,"\t",tp[i]);
+                cur++;
+            }
+            // assert(tp.size()==len);
+            while (tp.size()<len)
+                tp.push_back(0);
+            return tp;
+        }
+        else
+        {
+            deque<int> tp=initval->exps_[cur]->DumpInitVals(fs, "\t");
+            while (tp.size()<len)
+                tp.push_back(0);
+            cur++;
+            return tp;
+        }
+    }
+    else
+    {
+        int len=size[0];
+        size.pop_front();
+        deque<int> rst;
+        for (int i=0;i<len;i++)
+        {
+            deque<int> tp=InitVarArray(fs,size,initval,cur);
+            rst.insert(rst.end(),tp.begin(),tp.end());
+        }
+        return rst;
+    }
+}
+
+void DumpGlobalArrayInitializer(basic_ostream<char>& fs, deque<int> size, deque<int> initval, int& cur)
+{
+    if (size.size()==1)
+    {
+        int len=size[0];
+        fs<<"{"<<initval[cur];
+        cur++;
+        for (int i=1;i<len;i++)
+        {
+            fs<<", "<<initval[cur];
+            cur++;
+        }
+        fs<<"}";
+        return;
+    }
+    else
+    {
+        int len=size[0];
+        size.pop_front();
+        fs<<"{";
+        DumpGlobalArrayInitializer(fs,size,initval,cur);
+        for (int i=1;i<len;i++)
+        {
+            fs<<", ";
+            DumpGlobalArrayInitializer(fs,size,initval,cur);
+        }
+        fs<<"}";
+        return;
+    }
+}
+
+void DumpLocalConstArrayInitializer(basic_ostream<char>& fs, deque<int> size, deque<int> initval, int& cur, string ptr)
+{
+    if (size.size()==1)
+    {
+        int len=size[0];
+        for (int i=0;i<len;i++)
+        {
+            int curv=initval[cur];
+            cur++;
+            int tpvar=new_tempvar();
+            fs<<"\t%"<<tpvar<<" = getelemptr "<<ptr<<", "<<i<<endl;
+            fs<<"\tstore "<<curv<<", %"<<tpvar<<endl;
+        }
+        return;
+    }
+    else
+    {
+        int len=size[0];
+        size.pop_front();
+        for (int i=0;i<len;i++)
+        {
+            int tpvar=new_tempvar();
+            fs<<"\t%"<<tpvar<<" = getelemptr "<<ptr<<", "<<i<<endl;
+            string curp="%"+to_string(tpvar);
+            DumpLocalConstArrayInitializer(fs,size,initval,cur,curp);
+        }
+        return;
+    }
+}
+
+void DumpLocalVarArrayInitializer(basic_ostream<char>& fs, deque<int> size, deque<int> initval, int& cur, string ptr)
+{
+    if (size.size()==1)
+    {
+        int len=size[0];
+        for (int i=0;i<len;i++)
+        {
+            int curv=initval[cur];
+            cur++;
+            int tpvar=new_tempvar();
+            fs<<"\t%"<<tpvar<<" = getelemptr "<<ptr<<", "<<i<<endl;
+            if (curv==0)
+                fs<<"\tstore 0, %"<<tpvar<<endl;
+            else
+                fs<<"\tstore %"<<curv<<", %"<<tpvar<<endl;
+        }
+        return;
+    }
+    else
+    {
+        int len=size[0];
+        size.pop_front();
+        for (int i=0;i<len;i++)
+        {
+            int tpvar=new_tempvar();
+            fs<<"\t%"<<tpvar<<" = getelemptr "<<ptr<<", "<<i<<endl;
+            string curp="%"+to_string(tpvar);
+            DumpLocalVarArrayInitializer(fs,size,initval,cur,curp);
+        }
+        return;
+    }
+}
+
 string libsysy="decl @getint(): i32\ndecl @getch(): i32\ndecl @getarray(*i32): i32\ndecl @putint(i32)\ndecl @putch(i32)\ndecl @putarray(i32, *i32)\ndecl @starttime()\ndecl @stoptime()\n";
 
 void CompUnits::Print(string indent)
@@ -95,9 +293,47 @@ void FuncDef::Print(string indent)
 
 void FuncDef::Dump(basic_ostream<char>& fs, string indent, int dest)
 {
-    global_var=false;
-    block_->FuncBlockDump(fs,indent,this);
-    fs<<indent<<"}"<<endl;
+    if (block_!=nullptr)
+    {
+        global_var=false;
+        block_->FuncBlockDump(fs,indent,this);
+        fs<<indent<<"}"<<endl;
+    }
+    else
+    {
+        fs<<indent<<"decl @"<<ident_<<"(";
+        if (params_!=nullptr)
+        {
+            auto params=reinterpret_cast<FuncFParams*>(params_.get());
+            if (params->params_.size()!=0)
+            {
+                if (params->params_.size()==1)
+                    params->params_[0]->DumpParamDecl(fs);
+                else
+                {
+                    params->params_[0]->DumpParamDecl(fs);
+                    for (int i=1;i<params->params_.size();i++)
+                    {
+                        fs<<", ";
+                        params->params_[i]->DumpParamDecl(fs);
+                    }
+                }
+            }
+        }
+        fs<<")";
+        switch (functype_)
+        {
+        case 0: // void
+            fs<<"";
+            break;
+        case 1: // int
+            fs<<indent<<": i32";
+            break;
+        default:
+            break;
+        }
+        fs<<endl;
+    }
 }
 
 void FuncDef::FuncBlockDump(basic_ostream<char>& fs, string indent, BaseAst* pt)
@@ -180,28 +416,101 @@ void FuncFParam::Print(string indent)
 void FuncFParam::Dump(basic_ostream<char>& fs, string indent, int dest)
 {
     fs<<indent<<"@PARAM_"<<CurSymTab->find(ident_).val_<<": ";
-    switch (type_)
+    if (cur_derivation_==0)
     {
-    case 1:
+        switch (type_)
+        {
+        case 1:
+            fs<<"i32";
+            break;
+        
+        default:
+            LOG_ERROR("@FuncFParam::Dump: (cur_derivation_=0) unexpected type_=%d",type_);
+            break;
+        }
+    }
+    else if (cur_derivation_==1)
+    {
+        auto size=size_->GetArraySize();
+        fs<<"*";
+        for (int i=0;i<size.size();i++)
+            fs<<"[";
         fs<<"i32";
-        break;
-    
-    default:
-        LOG_ERROR("@FuncFParam::Dump: unexpected type_=%d",type_);
-        break;
+        for (int i=size.size()-1;i>=0;i--)
+            fs<<", "<<size[i]<<"]";
+    }
+    else
+    {
+        LOG_ERROR("@FuncFParam::Dump: unexpected cur_derivation_=%d",cur_derivation_);
+    }
+}
+
+void FuncFParam::DumpParamDecl(basic_ostream<char>& fs)
+{
+    if (cur_derivation_==0)
+    {
+        switch (type_)
+        {
+        case 1:
+            fs<<"i32";
+            break;
+        
+        default:
+            LOG_ERROR("@FuncFParam::Dump: (cur_derivation_=0) unexpected type_=%d",type_);
+            break;
+        }
+    }
+    else if (cur_derivation_==1)
+    {
+        auto size=size_->GetArraySize();
+        fs<<"*";
+        for (int i=0;i<size.size();i++)
+            fs<<"[";
+        fs<<"i32";
+        for (int i=size.size()-1;i>=0;i--)
+            fs<<", "<<size[i]<<"]";
+    }
+    else
+    {
+        LOG_ERROR("@FuncFParam::Dump: unexpected cur_derivation_=%d",cur_derivation_);
     }
 }
 
 void FuncFParam::FuncBlockDump(basic_ostream<char>& fs, string indent, BaseAst* pt)
 {
-    CurSymTab->insert_var(ident_);
+    if (cur_derivation_==0)
+        CurSymTab->insert_var(ident_);
+    else
+    {
+        auto size=size_->GetArraySize();
+        size.push_front(0);
+        CurSymTab->insert_var(ident_,size);
+    }
 }
 
 void FuncFParam::ReAllocateFParams(basic_ostream<char>& fs, string indent)
 {
-    int pos=CurSymTab->find(ident_).val_;
-    fs<<indent<<"@VAR_"<<pos<<" = alloc i32"<<endl;
-    fs<<indent<<"store @PARAM_"<<pos<<", @VAR_"<<pos<<endl;
+    auto rst=CurSymTab->find(ident_);
+    int pos=rst.val_;
+    auto size=rst.size_;
+    // assert(size[0]==0);
+    size.pop_front();
+    if (cur_derivation_==0)
+    {
+        fs<<indent<<"@VAR_"<<pos<<" = alloc i32"<<endl;
+        fs<<indent<<"store @PARAM_"<<pos<<", @VAR_"<<pos<<endl;
+    }
+    else if (cur_derivation_==1)
+    {
+        fs<<indent<<"@VAR_"<<pos<<" = alloc *";
+        for (int i=0;i<size.size();i++)
+            fs<<"[";
+        fs<<"i32";
+        for (int i=size.size()-1;i>=0;i--)
+            fs<<", "<<size[i]<<"]";
+        fs<<endl;
+        fs<<indent<<"store @PARAM_"<<pos<<", @VAR_"<<pos<<endl;
+    }
 }
 
 void FuncRParams::Print(string indent)
@@ -367,12 +676,89 @@ void ConstDefs::Dump(basic_ostream<char>& fs, string indent, int dest)
 
 void ConstDef::Print(string indent)
 {
-    cout<<indent<<ident_<<" := "<<initval_->CalcVal()<<endl;
+    auto size=size_->GetArraySize();
+    if (size.empty())
+    {
+        cout<<indent<<ident_<<":="<<initval_->CalcVal()<<endl;
+    }
+    else
+    {
+        cout<<indent<<ident_;
+        for (int i=0;i<size.size();i++)
+            cout<<"["<<size[i]<<"]";
+        cout<<":={";
+        auto initvals=initval_->GetConstInitVals();
+        while (initvals.size()<size[0])
+            initvals.push_back(0);
+        cout<<initvals[0];
+        for (int i=1;i<initvals.size();i++)
+            cout<<", "<<initvals[i];
+        cout<<"}\n";
+    }
 }
 
 void ConstDef::Dump(basic_ostream<char>& fs, string indent, int dest)
 {
-    CurSymTab->insert_const(ident_, initval_->CalcVal());
+    if (global_var)
+    {
+        auto size=size_->GetArraySize();
+        if (size.empty())
+        {
+            CurSymTab->insert_const(ident_, initval_->CalcVal());
+        }
+        else
+        {
+            CurSymTab->insert_const(ident_, 0, size);
+            int pos=CurSymTab->find(ident_).val_;
+            fs<<"global @VAR_"<<pos<<" = alloc ";
+            for (int i=0;i<size.size();i++)
+                fs<<"[";
+            fs<<"i32";
+            for (int i=size.size()-1;i>=0;i--)
+                fs<<", "<<size[i]<<"]";
+            int _cur_=0;
+            auto initvals=InitConstArray(size,reinterpret_cast<ConstInitVals*>(reinterpret_cast<ConstInitVal*>(initval_.get())->subexp_.get()),_cur_);
+            fs<<", ";
+            _cur_=0;
+            DumpGlobalArrayInitializer(fs,size,initvals,_cur_);
+            fs<<" //! w.r.t symbol "<<ident_<<endl;
+        }
+    }
+    else
+    {
+        auto size=size_->GetArraySize();
+        if (size.empty())
+        {
+            CurSymTab->insert_const(ident_, initval_->CalcVal());
+        }
+        else
+        {
+            CurSymTab->insert_const(ident_, 0, size);
+            int pos=CurSymTab->find(ident_).val_;
+            fs<<"\t@VAR_"<<pos<<" = alloc ";
+            for (int i=0;i<size.size();i++)
+                fs<<"[";
+            fs<<"i32";
+            for (int i=size.size()-1;i>=0;i--)
+                fs<<", "<<size[i]<<"]";
+            fs<<" //! w.r.t symbol "<<ident_<<endl;
+            int _cur_=0;
+            auto initvals=InitConstArray(size,reinterpret_cast<ConstInitVals*>(reinterpret_cast<ConstInitVal*>(initval_.get())->subexp_.get()),_cur_);
+            _cur_=0;
+            string curp="@VAR_"+to_string(pos);
+            DumpLocalConstArrayInitializer(fs,size,initvals,_cur_,curp);
+        }
+    }
+}
+
+void ArraySize::Print(string indent)
+{
+    return;
+}
+
+void ArraySize::Dump(basic_ostream<char>& fs, string indent, int dest)
+{
+    return;
 }
 
 void ConstInitVal::Print(string indent)
@@ -381,6 +767,16 @@ void ConstInitVal::Print(string indent)
 }
 
 void ConstInitVal::Dump(basic_ostream<char>& fs, string indent, int dest)
+{
+    return;
+}
+
+void ConstInitVals::Print(string indent)
+{
+    return;
+}
+
+void ConstInitVals::Dump(basic_ostream<char>& fs, string indent, int dest)
 {
     return;
 }
@@ -413,53 +809,136 @@ void VarDefs::Dump(basic_ostream<char>& fs, string indent, int dest)
 
 void VarDef::Print(string indent)
 {
-    if (cur_derivation_==0)
-        cout<<indent<<ident_<<" := \n";
+    auto size=size_->GetArraySize();
+    if (size.empty())
+    {
+        if (cur_derivation_==0)
+            cout<<indent<<ident_<<" := \n";
+        else
+        {
+            cout<<indent<<ident_<<" := {\n";
+            string curindent=indent+"|\t";
+            initval_->Print(curindent);
+            cout<<indent<<"}\n";
+        }
+    }
     else
     {
-        cout<<indent<<ident_<<" := {\n";
-        string curindent=indent+"|\t";
-        initval_->Print(curindent);
-        cout<<indent<<"}\n";
+        cout<<indent<<ident_;
+        for (int i=0;i<size.size();i++)
+            cout<<"["<<size[i]<<"]";
+        cout<<" :=";
+        if (cur_derivation_==0)
+            cout<<" \n";
+        else
+        {
+            cout<<" {\n";
+            string curindent=indent+"|\t";
+            initval_->Print(curindent);
+            cout<<indent<<"}\n";
+        }
     }
 }
 
 void VarDef::Dump(basic_ostream<char>& fs, string indent, int dest)
 {
-    CurSymTab->insert_var(ident_);
-    int cur=CurSymTab->find(ident_).val_;
+    auto size=size_->GetArraySize();
     if (global_var)
     {
-        switch (cur_derivation_)
+        if (size.empty())
         {
-        case 0:
-            fs<<indent<<"global @VAR_"<<cur<<" = alloc i32, zeroinit //! w.r.t. symbol "<<ident_<<endl;
-            break;
-        
-        case 1:
-            fs<<indent<<"global @VAR_"<<cur<<" = alloc i32, "<<initval_->CalcVal()<<" //! w.r.t. symbol "<<ident_<<endl;
-            break;
+            CurSymTab->insert_var(ident_);
+            int cur=CurSymTab->find(ident_).val_;
+            switch (cur_derivation_)
+            {
+            case 0:
+                fs<<indent<<"global @VAR_"<<cur<<" = alloc i32, zeroinit //! w.r.t. symbol "<<ident_<<endl;
+                break;
+            
+            case 1:
+                fs<<indent<<"global @VAR_"<<cur<<" = alloc i32, "<<initval_->CalcVal()<<" //! w.r.t. symbol "<<ident_<<endl;
+                break;
 
-        default:
-            LOG_ERROR("@Vardef::Dump::global_var: unexpected cur_derivation=%d",cur_derivation_);
-            break;
+            default:
+                LOG_ERROR("@Vardef::Dump::global_var: unexpected cur_derivation=%d",cur_derivation_);
+                break;
+            }
+        }
+        else
+        {
+            CurSymTab->insert_var(ident_, size);
+            int pos=CurSymTab->find(ident_).val_;
+            fs<<"global @VAR_"<<pos<<" = alloc ";
+            for (int i=0;i<size.size();i++)
+                fs<<"[";
+            fs<<"i32";
+            for (int i=size.size()-1;i>=0;i--)
+                fs<<", "<<size[i]<<"]";
+            if (cur_derivation_==0)
+            {
+                fs<<", zeroinit //! w.r.t symbol "<<ident_<<endl;
+            }
+            else
+            {
+                int _cur_=0;
+                auto initvals=InitConstArray(size,reinterpret_cast<ConstInitVals*>(reinterpret_cast<ConstInitVal*>(initval_.get())->subexp_.get()),_cur_);
+                fs<<", ";
+                _cur_=0;
+                DumpGlobalArrayInitializer(fs,size,initvals,_cur_);
+                fs<<" //! w.r.t symbol "<<ident_<<endl;
+            }
         }
     }
     else
     {
-        fs<<indent<<"@VAR_"<<cur<<" = alloc i32 //! w.r.t. symbol "<<ident_<<endl;
-        if (cur_derivation_==1)
+        CurSymTab->insert_var(ident_, size);
+        int cur=CurSymTab->find(ident_).val_;
+        if (size.empty())
         {
-            if (initval_->IsConst())
+            fs<<indent<<"@VAR_"<<cur<<" = alloc i32 //! w.r.t. symbol "<<ident_<<endl;
+            if (cur_derivation_==1)
             {
-                int val=initval_->CalcVal();
-                fs<<indent<<"store "<<val<<", @VAR_"<<cur<<endl;
+                if (initval_->IsConst())
+                {
+                    int val=initval_->CalcVal();
+                    fs<<indent<<"store "<<val<<", @VAR_"<<cur<<endl;
+                }
+                else
+                {
+                    int temp=new_tempvar();
+                    initval_->Dump(fs,indent,temp);
+                    fs<<indent<<"store %"<<temp<<", @VAR_"<<cur<<endl;
+                }
             }
-            else
+        }
+        else
+        {
+            fs<<indent<<"@VAR_"<<cur<<" = alloc ";
+            for (int i=0;i<size.size();i++)
+                fs<<"[";
+            fs<<"i32";
+            for (int i=size.size()-1;i>=0;i--)
+                fs<<", "<<size[i]<<"]";
+            fs<<" //! w.r.t symbol "<<ident_<<endl;
+            if (cur_derivation_==1)
             {
-                int temp=new_tempvar();
-                initval_->Dump(fs,indent,temp);
-                fs<<indent<<"store %"<<temp<<", @VAR_"<<cur<<endl;
+                int _cur_=0;
+                auto posinitvals=InitVarArray(fs,size,reinterpret_cast<InitVals*>(reinterpret_cast<InitVal*>(initval_.get())->subexp_.get()),_cur_);
+                _cur_=0;
+                string curp="@VAR_"+to_string(cur);
+                DumpLocalVarArrayInitializer(fs,size,posinitvals,_cur_,curp);
+                // for (int i=0;i<posinitvals.size();i++)
+                // {
+                //     int tpvar=new_tempvar();
+                //     fs<<indent<<"%"<<tpvar<<" = getelemptr @VAR_"<<cur<<", "<<i<<endl;
+                //     fs<<indent<<"store %"<<posinitvals[i]<<", %"<<tpvar<<endl;
+                // }
+                // for (int i=posinitvals.size();i<size[0];i++)
+                // {
+                //     int tpvar=new_tempvar();
+                //     fs<<indent<<"%"<<tpvar<<" = getelemptr @VAR_"<<cur<<", "<<i<<endl;
+                //     fs<<indent<<"store 0, %"<<tpvar<<endl;
+                // }
             }
         }
     }
@@ -467,15 +946,36 @@ void VarDef::Dump(basic_ostream<char>& fs, string indent, int dest)
 
 void InitVal::Print(string indent)
 {
-    if (IsConst())
-        cout<<indent<<CalcVal()<<endl;
+    if (cur_derivation_==0)
+    {
+        if (IsConst())
+            cout<<indent<<CalcVal()<<endl;
+        else
+            subexp_->Print(indent);
+    }
     else
+    {
         subexp_->Print(indent);
+    }
 }
 
 void InitVal::Dump(basic_ostream<char>& fs, string indent, int dest)
 {
+    assert(cur_derivation_==0);
     subexp_->Dump(fs,indent,dest);
+}
+
+void InitVals::Print(string indent)
+{
+    for (int i=0;i<exps_.size();i++)
+    {
+        exps_[i]->Print(indent);
+    }
+}
+
+void InitVals::Dump(basic_ostream<char>& fs, string indent, int dest)
+{
+    LOG_ERROR("@Exps::Dump: unexpected function call!");
 }
 
 void Stmt::Print(string indent)
@@ -557,6 +1057,8 @@ void Closed_If_Stmt::Dump(basic_ostream<char>& fs, string indent, int dest)
 {
     int tpvar, entry1, entry2, entry3;
     int prev_cur_while_exp, prev_cur_while_end;
+    deque<int> posindex, size;
+    string curp;
     switch (cur_derivation_)
     {
     case 0: // RETURN Exp ';'
@@ -572,13 +1074,36 @@ void Closed_If_Stmt::Dump(basic_ostream<char>& fs, string indent, int dest)
         break;
     
     case 1: // LVal EQ Exp ';'
+        posindex=subexp1_->DumpArrayIndex(fs,indent);
+        curp="@VAR_"+to_string(CurSymTab->find(subexp1_->GetIdent()).val_);
+        size=CurSymTab->find(subexp1_->GetIdent()).size_;
+        if (size.size()>0)
+        {
+            if (size[0]==0)
+            {
+                // pointer to array
+                int tpvar1=new_tempvar();
+                fs<<indent<<"%"<<tpvar1<<" = load "<<curp<<endl;
+                int tpvar2=new_tempvar();
+                fs<<indent<<"%"<<tpvar2<<" = getptr %"<<tpvar1<<", %"<<posindex[0]<<endl;
+                posindex.pop_front();
+                curp="%"+to_string(tpvar2);
+            }
+            for (int i=0;i<posindex.size();i++)
+            {
+                int tpvar=new_tempvar();
+                fs<<indent<<"%"<<tpvar<<" = getelemptr "<<curp<<", %"<<posindex[i]<<endl;
+                curp="%"+to_string(tpvar);
+            }
+        }
+        // LVal is scaler
         if (subexp2_->IsConst())
-            fs<<indent<<"store "<<subexp2_->CalcVal()<<", @VAR_"<<CurSymTab->find(subexp1_->GetIdent()).val_<<endl;
+            fs<<indent<<"store "<<subexp2_->CalcVal()<<", "<<curp<<endl;
         else
         {
             tpvar=new_tempvar();
             subexp2_->Dump(fs,indent,tpvar);
-            fs<<indent<<"store %"<<tpvar<<", @VAR_"<<CurSymTab->find(subexp1_->GetIdent()).val_<<endl;
+            fs<<indent<<"store %"<<tpvar<<", "<<curp<<endl;
         }
         break;
     
@@ -1545,11 +2070,88 @@ int PrimaryExp::CalcVal()
 void LVal::Print(string indent)
 {
     cout<<indent<<ident_<<endl;
+    ndx_->Print(indent);
 }
 
 void LVal::Dump(basic_ostream<char>& fs, string indent, int dest)
 {
-    fs<<indent<<"%"<<dest<<" = load @VAR_"<<CurSymTab->find(ident_).val_<<endl;
+    // will only be called in [Exp] (i.e. as RVal)
+    if (CurSymTab->find(ident_).isconst_)
+    {
+        fs<<indent<<"%"<<dest<<" = add 0, "<<CurSymTab->find(ident_).val_<<endl;
+    }
+    else
+    {
+        auto posindex=ndx_->DumpArrayIndex(fs,indent);
+
+        string curp="@VAR_"+to_string(CurSymTab->find(ident_).val_);
+        auto size=CurSymTab->find(ident_).size_;
+        if (size.size()>0)
+        {
+            // LVal is a pointer
+            int curpos=0;
+            while (size[curpos]==0 && curpos<posindex.size())
+            {
+                // pointer to array
+                int tpvar1=new_tempvar();
+                fs<<indent<<"%"<<tpvar1<<" = load "<<curp<<endl;
+                int tpvar2=new_tempvar();
+                fs<<indent<<"%"<<tpvar2<<" = getptr %"<<tpvar1<<", %"<<posindex[curpos]<<endl;
+                curp="%"+to_string(tpvar2);
+                curpos++;
+            }
+            for (;curpos<posindex.size();curpos++)
+            {
+                int tpvar=new_tempvar();
+                fs<<indent<<"%"<<tpvar<<" = getelemptr "<<curp<<", %"<<posindex[curpos]<<endl;
+                curp="%"+to_string(tpvar);
+            }
+
+            if (size.size()>posindex.size())
+            {
+                // partially dereferenced
+                if (size[posindex.size()]!=0)
+                    fs<<indent<<"%"<<dest<<" = getelemptr "<<curp<<", 0"<<endl;
+                else
+                    fs<<indent<<"%"<<dest<<" = load "<<curp<<endl;
+            }
+            else
+            {
+                // fully dereferenced
+                fs<<indent<<"%"<<dest<<" = load "<<curp<<endl;
+            }
+        }
+        else
+        {
+            // LVal is a single value
+            fs<<indent<<"%"<<dest<<" = load "<<curp<<endl;
+        }
+
+
+        // string addr="@VAR_"+to_string(CurSymTab->find(ident_).val_);
+        // for (int i=0;i<posindex.size();i++)
+        // {
+        //     int tpvar=new_tempvar();
+        //     fs<<indent<<"%"<<tpvar<<" = getelemptr "<<addr<<", %"<<posindex[i]<<endl;
+        //     addr="%"+to_string(tpvar);
+        // }
+        // fs<<indent<<"%"<<dest<<" = load "<<addr<<endl;
+    }
+}
+
+void ArrayIndex::Print(string indent)
+{
+    for (int i=0;i<ndx_.size();i++)
+    {
+        cout<<indent<<"["<<endl;
+        ndx_[i]->Print(indent+"\t");
+        cout<<indent<<"]"<<endl;
+    }
+}
+
+void ArrayIndex::Dump(basic_ostream<char>& fs, string indent, int dest)
+{
+    LOG_ERROR("@ArrayIndex::Dump: unexpected function call!");
 }
 
 void Number::Print(string indent)
