@@ -1,0 +1,44 @@
+decl @getint(): i32
+decl @getch(): i32
+decl @getarray(*i32): i32
+decl @putint(i32)
+decl @putch(i32)
+decl @putarray(i32, *i32)
+decl @starttime()
+decl @stoptime()
+
+fun @get(@PARAM_1: *i32, @PARAM_2: i32): i32 {
+%entry_1:
+	@VAR_1 = alloc *i32
+	store @PARAM_1, @VAR_1
+	@VAR_2 = alloc i32
+	store @PARAM_2, @VAR_2
+	%2 = load @VAR_2
+	%3 = load @VAR_1
+	%4 = getptr %3, %2
+	%1 = load %4
+	ret %1
+}
+fun @main(): i32 {
+%entry_2:
+	@VAR_3 = alloc [i32, 5] //! w.r.t symbol arr
+	%5 = add 0, 1
+	%6 = add 0, 2
+	%7 = add 0, 3
+	%8 = add 0, 4
+	%9 = add 0, 5
+	%10 = getelemptr @VAR_3, 0
+	store %5, %10
+	%11 = getelemptr @VAR_3, 1
+	store %6, %11
+	%12 = getelemptr @VAR_3, 2
+	store %7, %12
+	%13 = getelemptr @VAR_3, 3
+	store %8, %13
+	%14 = getelemptr @VAR_3, 4
+	store %9, %14
+	%16 = getelemptr @VAR_3, 0
+	%17 = add 0, 1
+	%15 = call @get(%16, %17)
+	ret %15
+}

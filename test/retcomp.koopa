@@ -1,0 +1,7 @@
+fun @main(): i32 {
+%entry:
+	%2 = add 0, 5
+	%3 = add 0, 8
+	%1 = and %2, %3
+	ret %1
+}

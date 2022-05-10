@@ -1,0 +1,36 @@
+fun @main(): i32 {
+%entry_1:
+	@VAR_1 = alloc i32 //! w.r.t. symbol a
+	store 0, @VAR_1
+	@VAR_2 = alloc i32 //! w.r.t. symbol b
+	store 1, @VAR_2
+	%ALC_2 = alloc i32 //! used for and exp
+	%3 = load @VAR_1
+	%4 = ne %3, 0
+	store %4, %ALC_2
+	br %4, %and_4, %endand_5
+
+%and_4:
+	%6 = load @VAR_2
+	%7 = ne %6, 0
+	%5 = and %4, %7
+	store %5, %ALC_2
+	jump %endand_5
+
+%endand_5:
+	%1 = load %ALC_2
+	br %1, %then_2, %end_3
+
+//! IF branch of the if stmt
+%then_2:
+	%9 = load @VAR_1
+	%10 = load @VAR_2
+	%8 = add %9, %10
+	store %8, @VAR_1
+	jump %end_3
+
+//! end of the if stmt
+%end_3:
+	%11 = load @VAR_1
+	ret %11
+}

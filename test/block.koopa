@@ -1,0 +1,19 @@
+fun @main(): i32 {
+%entry_1:
+	@VAR_1 = alloc i32 //! w.r.t. symbol a
+	store 1, @VAR_1
+	@VAR_2 = alloc i32 //! w.r.t. symbol b
+	store 2, @VAR_2
+	@VAR_3 = alloc i32 //! w.r.t. symbol a
+	store 3, @VAR_3
+	@VAR_4 = alloc i32 //! w.r.t. symbol b
+	store 4, @VAR_4
+	%1 = load @VAR_4
+	store %1, @VAR_3
+	%2 = load @VAR_3
+	store %2, @VAR_2
+	%3 = load @VAR_2
+	store %3, @VAR_1
+	%4 = load @VAR_2
+	ret %4
+}

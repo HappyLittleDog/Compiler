@@ -1,0 +1,264 @@
+decl @getint(): i32
+decl @getch(): i32
+decl @getarray(*i32): i32
+decl @putint(i32)
+decl @putch(i32)
+decl @putarray(i32, *i32)
+decl @starttime()
+decl @stoptime()
+
+decl @fp_add(i32, i32): i32
+decl @fp_sub(i32, i32): i32
+decl @fp_mul(i32, i32): i32
+decl @fp_div(i32, i32): i32
+decl @fp_lt(i32, i32): i32
+decl @to_fp(i32): i32
+decl @to_int(i32): i32
+fun @main(): i32 {
+%entry_1:
+	@VAR_1 = alloc i32 //! w.r.t. symbol xmin
+	%1 = call @getint()
+	store %1, @VAR_1
+	@VAR_2 = alloc i32 //! w.r.t. symbol xmax
+	%2 = call @getint()
+	store %2, @VAR_2
+	@VAR_3 = alloc i32 //! w.r.t. symbol ymin
+	%3 = call @getint()
+	store %3, @VAR_3
+	@VAR_4 = alloc i32 //! w.r.t. symbol ymax
+	%4 = call @getint()
+	store %4, @VAR_4
+	@VAR_5 = alloc i32 //! w.r.t. symbol maxiter
+	%5 = call @getint()
+	store %5, @VAR_5
+	@VAR_6 = alloc i32 //! w.r.t. symbol xres
+	%6 = call @getint()
+	store %6, @VAR_6
+	@VAR_7 = alloc i32 //! w.r.t. symbol yres
+	%11 = load @VAR_6
+	%10 = call @to_fp(%11)
+	%13 = load @VAR_4
+	%14 = load @VAR_3
+	%12 = call @fp_sub(%13, %14)
+	%9 = call @fp_mul(%10, %12)
+	%16 = load @VAR_2
+	%17 = load @VAR_1
+	%15 = call @fp_sub(%16, %17)
+	%8 = call @fp_div(%9, %15)
+	%7 = call @to_int(%8)
+	store %7, @VAR_7
+	%18 = add 0, 80
+	call @putch(%18)
+	%19 = add 0, 51
+	call @putch(%19)
+	%20 = add 0, 10
+	call @putch(%20)
+	%21 = load @VAR_6
+	call @putint(%21)
+	%22 = add 0, 32
+	call @putch(%22)
+	%23 = load @VAR_7
+	call @putint(%23)
+	%24 = add 0, 10
+	call @putch(%24)
+	%25 = add 0, 255
+	call @putint(%25)
+	%26 = add 0, 10
+	call @putch(%26)
+	@VAR_8 = alloc i32 //! w.r.t. symbol x
+	@VAR_9 = alloc i32 //! w.r.t. symbol y
+	@VAR_10 = alloc i32 //! w.r.t. symbol u
+	@VAR_11 = alloc i32 //! w.r.t. symbol v
+	@VAR_12 = alloc i32 //! w.r.t. symbol i
+	@VAR_13 = alloc i32 //! w.r.t. symbol j
+	@VAR_14 = alloc i32 //! w.r.t. symbol k
+	store 0, @VAR_13
+	jump %while_exp_2
+
+%while_exp_2:
+	%28 = load @VAR_13
+	%29 = load @VAR_7
+	%27 = lt %28, %29
+	br %27, %while_loop_3, %while_end_4
+
+%while_loop_3:
+	%31 = load @VAR_4
+	%35 = load @VAR_13
+	%34 = call @to_fp(%35)
+	%37 = load @VAR_4
+	%38 = load @VAR_3
+	%36 = call @fp_sub(%37, %38)
+	%33 = call @fp_mul(%34, %36)
+	%40 = load @VAR_7
+	%39 = call @to_fp(%40)
+	%32 = call @fp_div(%33, %39)
+	%30 = call @fp_sub(%31, %32)
+	store %30, @VAR_9
+	store 0, @VAR_12
+	jump %while_exp_5
+
+%while_exp_5:
+	%42 = load @VAR_12
+	%43 = load @VAR_6
+	%41 = lt %42, %43
+	br %41, %while_loop_6, %while_end_7
+
+%while_loop_6:
+	@VAR_15 = alloc i32 //! w.r.t. symbol u
+	store 0, @VAR_15
+	@VAR_16 = alloc i32 //! w.r.t. symbol v
+	store 0, @VAR_16
+	@VAR_17 = alloc i32 //! w.r.t. symbol u2
+	store 0, @VAR_17
+	@VAR_18 = alloc i32 //! w.r.t. symbol v2
+	store 0, @VAR_18
+	%45 = load @VAR_1
+	%49 = load @VAR_12
+	%48 = call @to_fp(%49)
+	%51 = load @VAR_2
+	%52 = load @VAR_1
+	%50 = call @fp_sub(%51, %52)
+	%47 = call @fp_mul(%48, %50)
+	%54 = load @VAR_6
+	%53 = call @to_fp(%54)
+	%46 = call @fp_div(%47, %53)
+	%44 = call @fp_add(%45, %46)
+	store %44, @VAR_8
+	store 1, @VAR_14
+	jump %while_exp_8
+
+%while_exp_8:
+	%ALC_56 = alloc i32 //! used for and exp
+	%59 = load @VAR_14
+	%60 = load @VAR_5
+	%57 = lt %59, %60
+	%58 = ne %57, 0
+	store %58, %ALC_56
+	br %58, %and_11, %endand_12
+
+%and_11:
+	%65 = load @VAR_17
+	%66 = load @VAR_18
+	%64 = call @fp_add(%65, %66)
+	%68 = add 0, 4
+	%67 = call @to_fp(%68)
+	%62 = call @fp_lt(%64, %67)
+	%63 = ne %62, 0
+	%61 = and %58, %63
+	store %61, %ALC_56
+	jump %endand_12
+
+%endand_12:
+	%55 = load %ALC_56
+	br %55, %while_loop_9, %while_end_10
+
+%while_loop_9:
+	%73 = add 0, 2
+	%72 = call @to_fp(%73)
+	%74 = load @VAR_15
+	%71 = call @fp_mul(%72, %74)
+	%75 = load @VAR_16
+	%70 = call @fp_mul(%71, %75)
+	%76 = load @VAR_9
+	%69 = call @fp_add(%70, %76)
+	store %69, @VAR_16
+	%79 = load @VAR_17
+	%80 = load @VAR_18
+	%78 = call @fp_sub(%79, %80)
+	%81 = load @VAR_8
+	%77 = call @fp_add(%78, %81)
+	store %77, @VAR_15
+	%83 = load @VAR_15
+	%84 = load @VAR_15
+	%82 = call @fp_mul(%83, %84)
+	store %82, @VAR_17
+	%86 = load @VAR_16
+	%87 = load @VAR_16
+	%85 = call @fp_mul(%86, %87)
+	store %85, @VAR_18
+	%89 = load @VAR_14
+	%90 = add 0, 1
+	%88 = add %89, %90
+	store %88, @VAR_14
+	jump %while_exp_8
+
+%while_end_10:
+	%92 = load @VAR_14
+	%93 = load @VAR_5
+	%91 = ge %92, %93
+	br %91, %then_13, %else_14
+
+//! IF branch of the if stmt
+%then_13:
+	%94 = add 0, 0
+	call @putint(%94)
+	%95 = add 0, 32
+	call @putch(%95)
+	%96 = add 0, 0
+	call @putint(%96)
+	%97 = add 0, 32
+	call @putch(%97)
+	%98 = add 0, 0
+	call @putint(%98)
+	%99 = add 0, 32
+	call @putch(%99)
+	jump %end_15
+
+//! ELSE branch of the if stmt
+%else_14:
+	@VAR_19 = alloc i32 //! w.r.t. symbol r
+	%103 = load @VAR_14
+	%104 = add 0, 128
+	%101 = mul %103, %104
+	%102 = load @VAR_5
+	%100 = div %101, %102
+	store %100, @VAR_19
+	@VAR_20 = alloc i32 //! w.r.t. symbol g
+	%108 = load @VAR_14
+	%109 = add 0, 192
+	%106 = mul %108, %109
+	%107 = load @VAR_5
+	%105 = div %106, %107
+	store %105, @VAR_20
+	@VAR_21 = alloc i32 //! w.r.t. symbol b
+	%113 = load @VAR_14
+	%114 = add 0, 255
+	%111 = mul %113, %114
+	%112 = load @VAR_5
+	%110 = div %111, %112
+	store %110, @VAR_21
+	%115 = load @VAR_19
+	call @putint(%115)
+	%116 = add 0, 32
+	call @putch(%116)
+	%117 = load @VAR_20
+	call @putint(%117)
+	%118 = add 0, 32
+	call @putch(%118)
+	%119 = load @VAR_21
+	call @putint(%119)
+	%120 = add 0, 32
+	call @putch(%120)
+	jump %end_15
+
+//! end of the if stmt
+%end_15:
+	%122 = load @VAR_12
+	%123 = add 0, 1
+	%121 = add %122, %123
+	store %121, @VAR_12
+	jump %while_exp_5
+
+%while_end_7:
+	%124 = add 0, 10
+	call @putch(%124)
+	%126 = load @VAR_13
+	%127 = add 0, 1
+	%125 = add %126, %127
+	store %125, @VAR_13
+	jump %while_exp_2
+
+%while_end_4:
+	%128 = add 0, 0
+	ret %128
+}

@@ -1,0 +1,85 @@
+fun @main(): i32 {
+%entry_1:
+	@VAR_1 = alloc i32 //! w.r.t. symbol a
+	store 1, @VAR_1
+	@VAR_2 = alloc i32 //! w.r.t. symbol b
+	store 0, @VAR_2
+	@VAR_3 = alloc i32 //! w.r.t. symbol c
+	store 4, @VAR_3
+	@VAR_4 = alloc i32 //! w.r.t. symbol d
+	store 5, @VAR_4
+	%4 = load @VAR_1
+	%5 = add 0, 1
+	%2 = eq %4, %5
+	%6 = load @VAR_1
+	%7 = add 0, 2
+	%3 = eq %6, %7
+	%8 = ne %2, 0
+	%9 = ne %3, 0
+	%1 = or %8, %9
+	br %1, %then_2, %end_3
+
+//! IF branch of the if stmt
+%then_2:
+	jump %end_3
+
+//! end of the if stmt
+%end_3:
+	%13 = load @VAR_2
+	%14 = add 0, 0
+	%11 = eq %13, %14
+	%15 = load @VAR_2
+	%16 = add 0, 1
+	%12 = eq %15, %16
+	%17 = ne %11, 0
+	%18 = ne %12, 0
+	%10 = or %17, %18
+	br %10, %then_4, %else_5
+
+//! IF branch of the if stmt
+%then_4:
+	%20 = load @VAR_4
+	%21 = add 0, 1
+	%19 = add %20, %21
+	store %19, @VAR_4
+	jump %end_6
+
+//! ELSE branch of the if stmt
+%else_5:
+	jump %end_6
+
+//! end of the if stmt
+%end_6:
+	%25 = load @VAR_1
+	%26 = load @VAR_2
+	%27 = ne %25, 0
+	%28 = ne %26, 0
+	%23 = and %27, %28
+	%29 = load @VAR_3
+	%30 = load @VAR_4
+	%31 = ne %29, 0
+	%32 = ne %30, 0
+	%24 = and %31, %32
+	%33 = ne %23, 0
+	%34 = ne %24, 0
+	%22 = or %33, %34
+	br %22, %then_7, %end_8
+
+//! IF branch of the if stmt
+%then_7:
+	%36 = load @VAR_4
+	%37 = add 0, 1
+	%35 = add %36, %37
+	store %35, @VAR_4
+	jump %end_8
+
+//! end of the if stmt
+%end_8:
+	%39 = load @VAR_4
+	%41 = load @VAR_3
+	%40 = eq 0, %41
+	%42 = ne %39, 0
+	%43 = ne %40, 0
+	%38 = or %42, %43
+	ret %38
+}
